@@ -1,0 +1,7 @@
+{
+  "train_data": "../data/ecb/mentions/train.json",
+  "train_data_mentions": "../data/ecb/mentions/train_entities.json",
+
+  "batch_size": 64
+
+}
