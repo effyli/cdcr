@@ -1,5 +1,5 @@
 import json
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import torch
 from torch.utils.data import Dataset
@@ -90,7 +90,7 @@ class SeqDataset(Dataset):
 
         return torch.tensor(inputs), torch.tensor(targets)
 
-    def batch_fn(self, samples: List, device: torch.device) -> Tuple[List[torch.Tensor, torch.Tensor], List[torch.Tensor, torch.Tensor]]:
+    def batch_fn(self, samples: List, device: torch.device) -> Tuple[Dict, Dict]:
         """
         A function for batching samples with paddings.
         Return:
@@ -103,8 +103,14 @@ class SeqDataset(Dataset):
         ys_lens = torch.tensor([len(y) for y in ys]).to(device)
 
         # pad and stack
-        inputs = [(x, x_len) for x, x_len in zip(stack_with_padding(xs), xs_lens)]
-        targets = [(y, y_len) for y, y_len in zip(stack_with_padding(ys), ys_lens)]
+        inputs = {
+            "sentences": stack_with_padding(xs),
+            "num_tokens": xs_lens
+        }
+        targets = {
+            "labels": stack_with_padding(ys),
+            "num_tokens": ys_lens
+        }
 
         return inputs, targets
 

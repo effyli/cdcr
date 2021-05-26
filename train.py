@@ -5,6 +5,7 @@ from transformers import AutoModel, AutoTokenizer
 import torch
 
 from cdcr.dataset import SeqDataset
+from cdcr.encoder import IndependentEncoder
 
 if __name__ == '__main__':
     # arguments parsing
@@ -23,8 +24,12 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
 
     # building model
+    # bert
+    bert_model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased")
+    bert_model.eval()
 
-    model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased")
+    #testing encoder
+    encoder = IndependentEncoder(pre_trained_emb=bert_model)
 
     # building dataset
     train_data = SeqDataset(data_path=config.train_data, tokenizer=tokenizer, label_path=config.train_data_mentions)
@@ -34,7 +39,8 @@ if __name__ == '__main__':
                                               collate_fn=lambda samples: train_data.batch_fn(samples, device),
                                               num_workers=0)
 
-
+    for inputs, targets in data_loader:
+        outputs = encoder(inputs)
 
 
 
