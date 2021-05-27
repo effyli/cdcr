@@ -40,6 +40,7 @@ class RNNDecoder(Decoder):
         out, _ = self.biLSTM(inputs)
         relation_space = self.relation_output(out)
         relation_scores = F.log_softmax(relation_space, dim=1)
+        predicted_labels = torch.argmax(relation_scores, dim=2)
 
         return relation_scores
     

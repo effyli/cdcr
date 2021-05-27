@@ -2,6 +2,11 @@
   "train_data": "../data/ecb/mentions/train.json",
   "train_data_mentions": "../data/ecb/mentions/train_entities.json",
 
-  "batch_size": 64
-
+  "batch_size": 64,
+  "encoder": "independent",
+  "decoder": "rnn",
+  "hidden_size": 128,
+  "bert_size": 768,
+  "num_epochs": 10,
+  "learning_rate": 0.001
 }
