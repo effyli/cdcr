@@ -106,11 +106,11 @@ class SeqDataset(Dataset):
 
         # pad and stack
         inputs = {
-            "sentences": stack_with_padding(xs),
+            "sentences": stack_with_padding(xs).to(device),
             "num_tokens": xs_lens
         }
         targets = {
-            "labels": stack_with_padding(ys),
+            "labels": stack_with_padding(ys).to(device),
             "num_tokens": ys_lens
         }
 
