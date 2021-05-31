@@ -4,8 +4,9 @@ import pyhocon
 from transformers import AutoModel, AutoTokenizer
 import torch
 
-from cdcr.dataset import SeqDataset
+from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
+from cdcr.utils.evaluation import calculate_prf
 
 
 def calculate_loss(outputs, targets):
@@ -34,12 +35,8 @@ def train(dataset: SeqDataset,
         model.parameters(),
         lr=learning_rate,
         momentum=0.9)
-    data_loader = torch.utils.data.DataLoader(dataset=dataset,
-                                              batch_size=batch_size,
-                                              shuffle=True,
-                                              collate_fn=lambda samples: dataset.batch_fn(samples, device),
-                                              num_workers=0)
 
+    data_loader = fetch_dataloader(dataset=dataset, split="train", device=device, batch_size=batch_size)
     train_losses, val_losses = [], []
     best_epoch_loss = float('+inf')
     best_model = None
@@ -47,21 +44,62 @@ def train(dataset: SeqDataset,
         epoch_loss = 0
         for inputs, targets in data_loader:
             optimizer.zero_grad()
-
             # get relation scores
             outputs = model(inputs, targets)
-
             # get loss
             loss = calculate_loss(outputs, targets)
             epoch_loss += loss
-
             # backprop
-            loss.backwoard()
+            loss.backward()
             optimizer.step()
+            evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
         # validation
+        evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+
+
+def evaluate(dataset: SeqDataset,
+             model: CDCRModel,
+             device: torch.device,
+             batch_size: int,
+             val_step: int = 1000):
+    """
+    Evaluate on batched examples.
+    Args:
+        dataset: validation/test dataset used for evaluation
+
+    """
+
+    model.eval()
+    total_loss = 0
+    data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
+    accs = []
+    step_correct_pred = 0
+    step = 0
+    step_loss = 0
+    for inputs, targets in data_loader:
+        step += batch_size
+        outputs = model(inputs, targets)
+        batch_loss = calculate_loss(outputs, targets)
+        total_loss += batch_loss
+        step_loss += batch_loss
+        predicted_labels = torch.argmax(outputs, dim=2)
+        # calculate P,R,F1 score per batch
+        predicted_out = predicted_labels.detach().numpy().tolist()
+        labels = targets['labels'].detach().numpy().tolist()
+        step_correct_pred += int((predicted_labels == targets['labels']).float().sum().item())
+        if step % val_step == 0:
+            step_acc = step_correct_pred / val_step
+            accs.append(step_acc)
+            print("Current Accuracy of {} samples is {}".format(val_step, step_acc))
+            step_correct_pred = 0
+            print("Current loss of {} samples is {}".format(val_step, step_loss / val_step))
+            step_loss = 0
+
+    print("Overall accuracy for all val data: {}, loss is: {}".format(sum(accs)/len(accs), total_loss/len(dataset)))
+    model.train()
 
 
 if __name__ == '__main__':
@@ -88,8 +126,15 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
 
     # building dataset
-    train_data = SeqDataset(data_path=config.train_data, tokenizer=tokenizer, label_path=config.train_data_mentions)
+    train_data = SeqDataset(data_path=config.train_data,
+                            tokenizer=tokenizer,
+                            label_path=config.train_data_mentions)
     vocab_size = train_data.entVocab.size
+
+    val_data = SeqDataset(data_path=config.val_data,
+                          tokenizer=tokenizer,
+                          label_path=config.val_data_mentions,
+                          entities_vocab=train_data.entVocab)
 
     # building model
     # bert
@@ -109,7 +154,8 @@ if __name__ == '__main__':
           device=device,
           num_epochs=num_epochs,
           batch_size=batch_size,
-          learning_rate=learning_rate)
+          learning_rate=learning_rate,
+          val_dataset=val_data)
 
 
 

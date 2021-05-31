@@ -48,6 +48,8 @@ class SeqDataset(Dataset):
         if entities_vocab is None:
             self.entVocab = EntVocab()
             self.entVocab.build(self.labels)
+        else:
+            self.entVocab = entities_vocab
 
         # init labels and group by doc
         self.labels = Labels(self.labels)
@@ -113,6 +115,36 @@ class SeqDataset(Dataset):
         }
 
         return inputs, targets
+
+
+def fetch_dataloader(dataset: SeqDataset,
+                     split: str,
+                     batch_size: int,
+                     device: torch.device,
+                     num_workers: int = 0) -> torch.utils.data.DataLoader:
+    """
+    Get the dataloader accordingly with specific split.
+    Args:
+        dataset: the SeqDataset that contains data samples
+        split: the string indicates which partition of data is required
+        batch_size: the integer that wraps batch of samples
+        num_workers: number of workers for GPU
+    Returns:
+        torch.utils.data.Dataloader: the torch Dataloader that is used for model
+    """
+    if split == "train":
+        return torch.utils.data.DataLoader(dataset=dataset,
+                                           batch_size=batch_size,
+                                           shuffle=True,
+                                           collate_fn=lambda samples: dataset.batch_fn(samples, device),
+                                           num_workers=num_workers)
+    if split == "val":
+        return torch.utils.data.DataLoader(dataset=dataset,
+                                           batch_size=batch_size,
+                                           shuffle=False,
+                                           collate_fn=lambda samples: dataset.batch_fn(samples, device),
+                                           num_workers=0)
+
 
 
 
