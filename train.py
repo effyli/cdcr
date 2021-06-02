@@ -8,7 +8,6 @@ import torch
 
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
-from cdcr.utils.evaluation import calculate_prf
 
 
 def calculate_loss(outputs, targets):
@@ -82,6 +81,7 @@ def evaluate(dataset: SeqDataset,
     step_correct_pred = 0
     step = 0
     step_loss = 0
+    step_num_labels = 0
     for inputs, targets in data_loader:
         step += batch_size
         outputs = model(inputs, targets)
@@ -90,17 +90,20 @@ def evaluate(dataset: SeqDataset,
         step_loss += batch_loss.item()
         predicted_labels = torch.argmax(outputs.cpu(), dim=2)
         labels = targets['labels'].cpu()
-        num_labels += (labels != 0).sum().item()
+        num_labels += targets['num_tokens'].item()
+        step_num_labels += targets['num_tokens'].item()
         # calculate P,R,F1 score per batch
         # predicted_out = predicted_labels.detach().numpy().tolist()
         # labels = targets['labels'].detach().numpy().tolist()
         step_correct_pred += int((predicted_labels == labels).float().sum().item())
-        if step % val_step == 0:
-            step_acc = step_correct_pred / val_step
-            print("Current Accuracy of {} samples is {}".format(val_step, step_acc))
+        if step % val_step == 0 or step >= len(dataset):
+            step_acc = step_correct_pred / step_num_labels
+            print("Eval step {}, out of {}".format(step, len(dataset)))
+            print("Accuracy of current {} samples is {}".format(val_step, step_acc))
+            step_num_labels = 0
             correct_preds += step_correct_pred
             step_correct_pred = 0
-            print("Current loss of {} samples is {}".format(val_step, step_loss / val_step))
+            print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
             step_loss = 0
         torch.cuda.empty_cache()
 

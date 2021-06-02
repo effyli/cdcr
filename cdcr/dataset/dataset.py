@@ -31,7 +31,6 @@ class SeqDataset(Dataset):
         # where each token is in a format of a tuple (doc_name, s_id, t_id)
         # TODO: Now dealing with sent individually, in future, considering of whole document info
         self.idx_to_sample = []
-        sent_id = 0
         sent = []
         for doc_name, doc_body in self.data.items():
             local_s_id = 0
@@ -39,10 +38,9 @@ class SeqDataset(Dataset):
                 if token[0] != local_s_id:
                     self.idx_to_sample.append(sent)
                     sent = []
-                    sent_id += 1
                     local_s_id += 1
                 t_id = token[1] - 1
-                sent.append((doc_name, sent_id, t_id, token[2]))
+                sent.append((doc_name, token[0], t_id, token[2]))
 
         # get entities vocab
         if entities_vocab is None:
