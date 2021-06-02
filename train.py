@@ -1,3 +1,5 @@
+import GPUtil
+
 import argparse
 import pyhocon
 
@@ -64,7 +66,7 @@ def evaluate(dataset: SeqDataset,
              model: CDCRModel,
              device: torch.device,
              batch_size: int,
-             val_step: int = 1000):
+             val_step: int = 100):
     """
     Evaluate on batched examples.
     Args:
@@ -75,7 +77,8 @@ def evaluate(dataset: SeqDataset,
     model.eval()
     total_loss = 0
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
-    accs = []
+    correct_preds = 0
+    num_labels = 0
     step_correct_pred = 0
     step = 0
     step_loss = 0
@@ -83,26 +86,30 @@ def evaluate(dataset: SeqDataset,
         step += batch_size
         outputs = model(inputs, targets)
         batch_loss = calculate_loss(outputs, targets)
-        total_loss += batch_loss
-        step_loss += batch_loss
-        predicted_labels = torch.argmax(outputs, dim=2)
+        total_loss += batch_loss.item()
+        step_loss += batch_loss.item()
+        predicted_labels = torch.argmax(outputs.cpu(), dim=2)
+        labels = targets['labels'].cpu()
+        num_labels += (labels != 0).sum().item()
         # calculate P,R,F1 score per batch
-        predicted_out = predicted_labels.detach().numpy().tolist()
-        labels = targets['labels'].detach().numpy().tolist()
-        step_correct_pred += int((predicted_labels == targets['labels']).float().sum().item())
+        # predicted_out = predicted_labels.detach().numpy().tolist()
+        # labels = targets['labels'].detach().numpy().tolist()
+        step_correct_pred += int((predicted_labels == labels).float().sum().item())
         if step % val_step == 0:
             step_acc = step_correct_pred / val_step
-            accs.append(step_acc)
             print("Current Accuracy of {} samples is {}".format(val_step, step_acc))
+            correct_preds += step_correct_pred
             step_correct_pred = 0
             print("Current loss of {} samples is {}".format(val_step, step_loss / val_step))
             step_loss = 0
+        torch.cuda.empty_cache()
 
-    print("Overall accuracy for all val data: {}, loss is: {}".format(sum(accs)/len(accs), total_loss/len(dataset)))
+    print("Overall accuracy for all val data: {}, loss is: {}".format(correct_preds/num_labels, total_loss/len(dataset)))
     model.train()
 
 
 if __name__ == '__main__':
+    GPUtil.showUtilization()
     # arguments parsing
     parser = argparse.ArgumentParser()
 
@@ -138,7 +145,7 @@ if __name__ == '__main__':
 
     # building model
     # bert
-    bert_model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased")
+    bert_model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased", gradient_checkpointing=True)
     bert_model.eval()
 
     model = build_model(encoder_name=encoder,
