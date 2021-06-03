@@ -2,6 +2,14 @@ import torch
 import torch.nn.functional as F
 
 
+def sum_to_int( tensor):
+    return int(tensor.float().sum().item())
+
+
+def safe_div( a, b):
+    return a / b if b else 0
+
+
 def stack_with_padding(tensors, dim=0, pad_value=0):
     """
     Stacks a list of tensors by padding each dimension (on the right side) to the maximum between all tensors

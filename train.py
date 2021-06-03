@@ -8,6 +8,7 @@ import torch
 
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
+from cdcr.utils.evaluation import Evaluator
 
 
 def calculate_loss(outputs, targets):
@@ -55,7 +56,7 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            # evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+            # evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
@@ -74,42 +75,26 @@ def evaluate(dataset: SeqDataset,
         dataset: validation/test dataset used for evaluation
 
     """
+    # initialize a evaluator for related metrics
+    evaluator = Evaluator(total_steps=len(dataset), batch_size= batch_size, report_step=val_step)
 
     model.eval()
-    total_loss = 0
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
-    correct_preds = 0
-    num_labels = 0
-    step_correct_pred = 0
-    step = 0
-    step_loss = 0
-    step_num_labels = 0
     for inputs, targets in data_loader:
-        step += batch_size
         outputs = model(inputs, targets)
         batch_loss = calculate_loss(outputs, targets)
-        total_loss += batch_loss.item()
-        step_loss += batch_loss.item()
         predicted_labels = torch.argmax(outputs.cpu(), dim=2)
         labels = targets['labels'].cpu()
-        num_labels += targets['num_tokens'].item()
-        step_num_labels += targets['num_tokens'].item()
         # calculate P,R,F1 score per batch
-        # predicted_out = predicted_labels.detach().numpy().tolist()
-        # labels = targets['labels'].detach().numpy().tolist()
-        step_correct_pred += int((predicted_labels == labels).float().sum().item())
-        if step % val_step == 0 or step >= len(dataset):
-            step_acc = step_correct_pred / step_num_labels
-            print("Eval step {}, out of {}".format(step, len(dataset)))
-            print("Accuracy of current {} samples is {}".format(val_step, step_acc))
-            step_num_labels = 0
-            correct_preds += step_correct_pred
-            step_correct_pred = 0
+        evaluator.update(predicted_labels, labels, batch_loss.item(), targets['num_tokens'].cpu())
+        if evaluator.to_report():
+            step_loss, step_acc, step_recall, step_precision = evaluator.step_report()
+            print("Eval step {}, out of {}".format(evaluator.step, len(dataset)))
+            print("Accuracy of current {} samples is {}, recall is {}, precision is {}".format(val_step, step_acc, step_recall, step_precision))
             print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
-            step_loss = 0
         torch.cuda.empty_cache()
-
-    print("Overall accuracy for all val data: {}, loss is: {}".format(correct_preds/num_labels, total_loss/len(dataset)))
+    total_loss, total_acc, total_recall, total_precision = evaluator.final_report()
+    print("Overall accuracy for all val data: {}, loss is: {}, recall is {}, precision is {}".format(total_acc, total_loss, total_recall, total_precision))
     model.train()
 
 
