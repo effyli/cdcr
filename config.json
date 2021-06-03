@@ -1,8 +1,8 @@
 {
-  "train_data": "../data/ecb/mentions/train.json",
-  "train_data_mentions": "../data/ecb/mentions/train_entities.json",
-  "val_data": "../data/ecb/mentions/dev.json",
-  "val_data_mentions": "../data/ecb/mentions/dev_entities.json",
+  "train_data": "data/data/ecb/mentions/train.json",
+  "train_data_mentions": "data/data/ecb/mentions/train_entities.json",
+  "val_data": "data/data/ecb/mentions/dev.json",
+  "val_data_mentions": "data/data/ecb/mentions/dev_entities.json",
 
   "batch_size": 64,
   "encoder": "independent",

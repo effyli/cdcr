@@ -1,4 +1,4 @@
-import GPUtil
+import os
 
 import argparse
 import pyhocon
@@ -32,6 +32,8 @@ def train(dataset: SeqDataset,
           learning_rate: float,
           val_dataset: SeqDataset = None):
 
+    print("training...")
+
     optimizer = torch.optim.SGD(
         model.parameters(),
         lr=learning_rate,
@@ -53,7 +55,7 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+            # evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
@@ -112,7 +114,7 @@ def evaluate(dataset: SeqDataset,
 
 
 if __name__ == '__main__':
-    GPUtil.showUtilization()
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     # arguments parsing
     parser = argparse.ArgumentParser()
 
@@ -131,7 +133,6 @@ if __name__ == '__main__':
     bert_size = config.bert_size
     num_epochs = config.num_epochs
     learning_rate = config.learning_rate
-
     # loading spanBert tokenizer
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
 
@@ -148,9 +149,8 @@ if __name__ == '__main__':
 
     # building model
     # bert
-    bert_model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased", gradient_checkpointing=True)
+    bert_model = AutoModel.from_pretrained("SpanBERT/spanbert-base-cased")
     bert_model.eval()
-
     model = build_model(encoder_name=encoder,
                         decoder_name=decoder,
                         hidden_size=hidden_size,
@@ -158,7 +158,6 @@ if __name__ == '__main__':
                         vocab_size=vocab_size,
                         pre_trained_emb=bert_model)
     model.to(device)
-
     train(dataset=train_data,
           model=model,
           device=device,
