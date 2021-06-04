@@ -3,6 +3,7 @@
   "train_data_mentions": "../data/ecb/mentions/train_entities.json",
   "val_data": "../data/ecb/mentions/dev.json",
   "val_data_mentions": "../data/ecb/mentions/dev_entities.json",
+  "vocab_path": "../data/vocab.pkl",
   "save_model": "../models/",
 
   "batch_size": 64,

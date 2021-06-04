@@ -1,5 +1,6 @@
 import os
 
+import pickle
 import argparse
 import pyhocon
 
@@ -9,6 +10,7 @@ import torch
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
 from cdcr.utils.evaluation import Evaluator
+from cdcr.utils.vocab import EntVocab
 
 
 def calculate_loss(outputs, targets):
@@ -125,16 +127,22 @@ if __name__ == '__main__':
     learning_rate = config.learning_rate
     # loading spanBert tokenizer
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
+    # loading pre-built vocab
+    with open(config.vocab_path, 'rb') as f:
+        vocab = pickle.load(f)
 
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
-                            label_path=config.train_data_mentions)
+                            label_path=config.train_data_mentions,
+                            entities_vocab=vocab)
     vocab_size = train_data.entVocab.size
 
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,
-                          label_path=config.val_data_mentions)
+                          label_path=config.val_data_mentions,
+                          entities_vocab=vocab)
+
 
     # building model
     # bert
