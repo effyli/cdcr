@@ -68,7 +68,7 @@ def evaluate(dataset: SeqDataset,
              model: CDCRModel,
              device: torch.device,
              batch_size: int,
-             val_step: int = 100):
+             val_step: int = 1000):
     """
     Evaluate on batched examples.
     Args:

@@ -46,7 +46,7 @@ class Evaluator:
         for predicted_label, label, num_token in zip(predicted_labels, labels, num_tokens):
             batch_correct_preds_with_unk += sum_to_int(predicted_label[: num_token] == label[: num_token])
             batch_golden_labels += sum_to_int(label[:num_token] != 0)
-            batch_preds += sum_to_int(predicted_labels[: num_token] != 0)
+            batch_preds += sum_to_int(predicted_label[: num_token] != 0)
             for i in range(num_token):
                 if label[i] != 0 and predicted_label[i] == label[i]:
                     batch_correct_preds_labels += 1
