@@ -75,7 +75,7 @@ class SeqDataset(Dataset):
         for (d_name, s_id, t_id, _) in sent:
             # in sent, token id starts from 0
             t_mention = None
-            if d_name in labels_by_doc and str(s_id) in labels_by_doc[d_name]:
+            if (d_name in labels_by_doc) and (str(s_id) in labels_by_doc[d_name]):
                 for mention in labels_by_doc[d_name][str(s_id)]:
                     if t_id in mention.tokens_ids:
                         t_mention = mention

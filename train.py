@@ -41,7 +41,6 @@ def train(dataset: SeqDataset,
         momentum=0.9)
 
     data_loader = fetch_dataloader(dataset=dataset, split="train", device=device, batch_size=batch_size)
-    train_losses, val_losses = [], []
     best_epoch_loss = float('+inf')
     best_model = None
     for epoch in range(num_epochs):
@@ -56,12 +55,17 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            # evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
+            # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
         # validation
-        evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+        val_epoch_loss = evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+        if val_epoch_loss < best_epoch_loss:
+            best_epoch_loss = val_epoch_loss
+            best_model = model.state_dict()
+    if best_model:
+        model.load_state_dict(best_model)
 
 
 def evaluate(dataset: SeqDataset,
@@ -76,7 +80,7 @@ def evaluate(dataset: SeqDataset,
 
     """
     # initialize a evaluator for related metrics
-    evaluator = Evaluator(total_steps=len(dataset), batch_size= batch_size, report_step=val_step)
+    evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, report_step=val_step)
 
     model.eval()
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
@@ -96,6 +100,7 @@ def evaluate(dataset: SeqDataset,
     total_loss, total_acc, total_recall, total_precision = evaluator.final_report()
     print("Overall accuracy for all val data: {}, loss is: {}, recall is {}, precision is {}".format(total_acc, total_loss, total_recall, total_precision))
     model.train()
+    return total_loss
 
 
 if __name__ == '__main__':
@@ -129,8 +134,7 @@ if __name__ == '__main__':
 
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,
-                          label_path=config.val_data_mentions,
-                          entities_vocab=train_data.entVocab)
+                          label_path=config.val_data_mentions)
 
     # building model
     # bert
@@ -150,6 +154,9 @@ if __name__ == '__main__':
           batch_size=batch_size,
           learning_rate=learning_rate,
           val_dataset=val_data)
+
+    if config.save_model:
+        model.save(config.save_model)
 
 
 

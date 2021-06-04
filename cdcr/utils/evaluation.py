@@ -89,7 +89,7 @@ class Evaluator:
         """
         Return final stats in the order of loss, accuracy, recall, precision
         """
-        return self.total_loss, \
+        return (safe_div(self.total_loss, self.total_steps)), \
                (safe_div(self.correct_preds, self.step_num_tokens)), \
                (safe_div(self.correct_preds_labels, self.golden_labels)), \
                (safe_div(self.correct_preds_labels, self.all_preds))
