@@ -37,7 +37,7 @@ class Evaluator:
         """
         self.step += self.batch_size
         self.step_num_tokens += num_tokens.sum().item()
-        self.num_tokens += num_tokens
+        self.num_tokens += num_tokens.sum().item()
         batch_correct_preds_with_unk = 0
         batch_preds = 0
         batch_correct_preds_labels = 0
@@ -90,7 +90,7 @@ class Evaluator:
         Return final stats in the order of loss, accuracy, recall, precision
         """
         return (safe_div(self.total_loss, self.total_steps)), \
-               (safe_div(self.correct_preds, self.step_num_tokens)), \
+               (safe_div(self.correct_preds, self.num_tokens)), \
                (safe_div(self.correct_preds_labels, self.golden_labels)), \
                (safe_div(self.correct_preds_labels, self.all_preds))
 
