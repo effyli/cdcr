@@ -11,7 +11,7 @@ class IndependentEncoder(Encoder):
     """
 
     def __init__(self, pre_trained_emb: AutoModel = None):
-        super().__init__()
+        super().__init__(pre_trained_emb)
         # TODO: adding attention?
         self.pre_trained_emb = pre_trained_emb
 

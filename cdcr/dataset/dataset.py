@@ -136,7 +136,7 @@ def fetch_dataloader(dataset: SeqDataset,
                                            shuffle=True,
                                            collate_fn=lambda samples: dataset.batch_fn(samples, device),
                                            num_workers=num_workers)
-    if split == "val":
+    if split in ["val", "test"]:
         return torch.utils.data.DataLoader(dataset=dataset,
                                            batch_size=batch_size,
                                            shuffle=False,

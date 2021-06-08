@@ -23,7 +23,7 @@ class RNNDecoder(Decoder):
             input_size: the dimension from the output of encoder
             vocab_size: number of classes/entities possible to output at each timestep
         """
-        super().__init__()
+        super().__init__(hidden_size, input_size, vocab_size)
 
         self.biLSTM = nn.GRU(input_size, hidden_size, bidirectional=True)
         self.relation_output = nn.Linear(hidden_size * 2, vocab_size, bias=False)

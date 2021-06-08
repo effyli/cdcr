@@ -45,13 +45,13 @@ class CDCRModel(nn.Module):
         state = self.state_dict()
         torch.save(state, path)
 
-    def load(self, path: str = None, state=None):
-        state = torch.load(path)
+    def load(self, path: str = None, device: torch.device = 'cpu', state=None):
+        state = torch.load(path, map_location=device)
         self.load_state_dict(state)
 
     @staticmethod
-    def loads(path: str):
-        state = torch.load(path)
+    def loads(path: str, device: torch.device):
+        state = torch.load(path, map_location=device)
         topic_model = load_encoder(
             state['encoder_state']['class_name'],
             state['encoder_state']['params'])
