@@ -1,3 +1,5 @@
+import pickle
+
 from typing import Iterable, List, Any
 from dataclasses import dataclass
 
@@ -112,3 +114,21 @@ class EntVocab:
                 entities.append(self.unk)
         return entities
 
+
+def build_vocab(config):
+    # optional: build vocabulary across dataset
+    import json
+    label_path = "../data/ecb/mentions/train_entities.json"
+    val_label_path = "../data/ecb/mentions/dev_entities.json"
+    test_label_path = "../data/ecb/mentions/test_entities.json"
+    with open(label_path, 'r') as f:
+        labels = json.load(f)
+    with open(val_label_path, 'r') as f:
+        labels.extend(json.load(f))
+    with open(test_label_path, 'r') as f:
+        labels.extend(json.load(f))
+    entVocab = EntVocab()
+    entVocab.build(labels)
+
+    with open(config.vocab_path, 'wb') as f:
+        pickle.dump(entVocab, f)
