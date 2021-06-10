@@ -118,6 +118,7 @@ class EntVocab:
 def build_vocab(config):
     # optional: build vocabulary across dataset
     import json
+    entVocab = EntVocab()
     label_path = "../data/ecb/mentions/train_entities.json"
     val_label_path = "../data/ecb/mentions/dev_entities.json"
     test_label_path = "../data/ecb/mentions/test_entities.json"
@@ -127,7 +128,7 @@ def build_vocab(config):
         labels.extend(json.load(f))
     with open(test_label_path, 'r') as f:
         labels.extend(json.load(f))
-    entVocab = EntVocab()
+
     entVocab.build(labels)
 
     with open(config.vocab_path, 'wb') as f:

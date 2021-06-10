@@ -10,7 +10,7 @@ import torch
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
 from cdcr.utils.evaluation import Evaluator
-from cdcr.utils.vocab import EntVocab
+from cdcr.utils.vocab import EntVocab, build_vocab
 
 
 def calculate_loss(outputs, targets):
@@ -57,7 +57,7 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
+            _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
@@ -74,7 +74,7 @@ def evaluate(dataset: SeqDataset,
              model: CDCRModel,
              device: torch.device,
              batch_size: int,
-             val_step: int = 1000):
+             val_step: int = 100):
     """
     Evaluate on batched examples.
     Args:
@@ -127,6 +127,8 @@ if __name__ == '__main__':
     learning_rate = config.learning_rate
     # loading spanBert tokenizer
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
+
+    # build_vocab(config)
     # loading pre-built vocab
     with open(config.vocab_path, 'rb') as f:
         vocab = pickle.load(f)
