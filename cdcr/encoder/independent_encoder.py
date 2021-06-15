@@ -24,7 +24,9 @@ class IndependentEncoder(Encoder):
         for row, col in zip(masks, inputs["num_tokens"]):
             row[:col] = 1
         token_embeddings = token_embeddings * torch.unsqueeze(masks, 2)
+        sum_token_embeddings = token_embeddings.sum(1)
+        sum_token_embeddings /= torch.unsqueeze(inputs["num_tokens"], 1)
 
-        return token_embeddings
+        return sum_token_embeddings
 
 

@@ -6,8 +6,7 @@ from torch.utils.data import Dataset
 
 from transformers import AutoTokenizer
 
-from .corpus import Labels
-from ..utils.vocab import EntVocab
+from .vocab import Labels, Vocab
 from ..utils.ops import stack_with_padding
 
 
@@ -18,7 +17,7 @@ class SeqDataset(Dataset):
     def __init__(self,
                  data_path: str,
                  tokenizer: AutoTokenizer,
-                 entities_vocab: EntVocab = None,
+                 vocab: Vocab = None,
                  label_path: str = None):
 
         with open(data_path, 'r') as f:
@@ -26,6 +25,12 @@ class SeqDataset(Dataset):
         if label_path:
             with open(label_path, 'r') as f:
                 self.labels = json.load(f)
+
+        # init labels and group by doc and clusters
+        self.labels = Labels(self.labels)
+
+        # unifying data, adding cluster id info
+        self.data = self.labels.unify_corpus(self.data)
 
         # each sample is a sentence, each sample contains all tokens in a list
         # where each token is in a format of a tuple (doc_name, s_id, t_id)
@@ -40,17 +45,14 @@ class SeqDataset(Dataset):
                     sent = []
                     local_s_id += 1
                 t_id = token[1] - 1
-                sent.append((doc_name, token[0], t_id, token[2]))
+                sent.append((token[0], t_id, token[2], doc_name, token[-1]))
 
         # get entities vocab
-        if entities_vocab is None:
-            self.entVocab = EntVocab()
-            self.entVocab.build(self.labels)
+        if vocab is None:
+            self.vocab = Vocab()
+            self.vocab.build(self.data, self.labels)
         else:
-            self.entVocab = entities_vocab
-
-        # init labels and group by doc
-        self.labels = Labels(self.labels)
+            self.vocab = vocab
 
         # spanBert related
         self.tokenizer = tokenizer
@@ -65,29 +67,10 @@ class SeqDataset(Dataset):
         """
         sent = self.idx_to_sample[index]
         # tokenize inputs using spanBert
-        inputs = []
-        for token in sent:
-            inputs.append(self.tokenizer.encode(token[-1], add_special_tokens=True)[1])
-
-        labels_by_doc = self.labels.labels_by_doc
-        # getting labels for the sentence in a list of Mentions objects
-        target_mentions = []
-        for (d_name, s_id, t_id, _) in sent:
-            # in sent, token id starts from 0
-            t_mention = None
-            if (d_name in labels_by_doc) and (str(s_id) in labels_by_doc[d_name]):
-                for mention in labels_by_doc[d_name][str(s_id)]:
-                    if t_id in mention.tokens_ids:
-                        t_mention = mention
-                        break
-            if t_mention:
-                target_mentions.append(t_mention)
-            else:
-                target_mentions.append(self.entVocab.unk)
-
-        # vectorize target mentions
-        targets = self.entVocab.vectorize(target_mentions)
-
+        inputs = [self.tokenizer.encode(token[2], add_special_tokens=True)[1] for token in sent]
+        # getting targets
+        targets_str = [self.labels.get_name_by_token(token) for token in sent]
+        targets = self.vocab.vectorize(targets_str)
         return torch.tensor(inputs), torch.tensor(targets)
 
     def batch_fn(self, samples: List, device: torch.device) -> Tuple[Dict, Dict]:

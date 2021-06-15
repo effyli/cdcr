@@ -10,7 +10,7 @@ import torch
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
 from cdcr.utils.evaluation import Evaluator
-from cdcr.utils.vocab import EntVocab, build_vocab
+from cdcr.dataset.vocab import build_vocab
 
 
 def calculate_loss(outputs, targets):
@@ -74,7 +74,7 @@ def evaluate(dataset: SeqDataset,
              model: CDCRModel,
              device: torch.device,
              batch_size: int,
-             val_step: int = 100):
+             val_step: int = 1):
     """
     Evaluate on batched examples.
     Args:
@@ -133,18 +133,19 @@ if __name__ == '__main__':
     with open(config.vocab_path, 'rb') as f:
         vocab = pickle.load(f)
 
+    sos_id = vocab["<sos>"]
+    eos_id = vocab["<eos>"]
+
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
-                            label_path=config.train_data_mentions,
-                            entities_vocab=vocab)
-    vocab_size = train_data.entVocab.size
+                            label_path=config.train_data_mentions)
+    vocab_size = train_data.vocab.size
 
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,
                           label_path=config.val_data_mentions,
-                          entities_vocab=vocab)
-
+                          vocab=None)
 
     # building model
     # bert
@@ -155,6 +156,8 @@ if __name__ == '__main__':
                         hidden_size=hidden_size,
                         input_size=bert_size,
                         vocab_size=vocab_size,
+                        sos_id=sos_id,
+                        eos_id=eos_id,
                         pre_trained_emb=bert_model)
     model.to(device)
     train(dataset=train_data,

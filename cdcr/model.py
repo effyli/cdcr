@@ -22,8 +22,8 @@ class CDCRModel(nn.Module):
         self.decoder = decoder
 
     def forward(self, inputs, outputs=None):
-        enc_output = self.encoder(inputs)
-        relation_scores = self.decoder(enc_output)
+        hidden_states = self.encoder(inputs)
+        relation_scores = self.decoder(hidden_states, outputs)
         return relation_scores
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
@@ -68,6 +68,8 @@ def build_model(encoder_name: str,
                 hidden_size: int,
                 input_size: int,
                 vocab_size: int,
+                sos_id: int,
+                eos_id: int,
                 pre_trained_emb: AutoModel = None,
                 ):
     # create encoder
@@ -78,7 +80,9 @@ def build_model(encoder_name: str,
     if decoder_name == "rnn":
         decoder = RNNDecoder(hidden_size=hidden_size,
                              input_size=input_size,
-                             vocab_size=vocab_size)
+                             vocab_size=vocab_size,
+                             sos_id=sos_id,
+                             eos_id=eos_id)
 
     return CDCRModel(encoder, decoder)
 
