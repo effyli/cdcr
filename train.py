@@ -10,7 +10,7 @@ import torch
 from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
 from cdcr.utils.evaluation import Evaluator
-from cdcr.dataset.vocab import build_vocab
+from cdcr.dataset.vocab import build_vocab, Vocab
 
 
 def calculate_loss(outputs, targets):
@@ -29,6 +29,7 @@ def calculate_loss(outputs, targets):
 
 def train(dataset: SeqDataset,
           model: CDCRModel,
+          vocab: Vocab,
           device: torch.device,
           num_epochs: int,
           batch_size: int,
@@ -57,12 +58,12 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2)
+            # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, vocab=vocab)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
         # validation
-        val_epoch_loss = evaluate(dataset=val_dataset, model=model, device=device, batch_size=1)
+        val_epoch_loss = evaluate(dataset=val_dataset, model=model,vocab=vocab, device=device, batch_size=1)
         if val_epoch_loss < best_epoch_loss:
             best_epoch_loss = val_epoch_loss
             best_model = model.state_dict()
@@ -72,6 +73,7 @@ def train(dataset: SeqDataset,
 
 def evaluate(dataset: SeqDataset,
              model: CDCRModel,
+             vocab: Vocab,
              device: torch.device,
              batch_size: int,
              val_step: int = 1):
@@ -81,8 +83,9 @@ def evaluate(dataset: SeqDataset,
         dataset: validation/test dataset used for evaluation
 
     """
+    ent_ids = vocab.get_ent_ids()
     # initialize a evaluator for related metrics
-    evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, report_step=val_step)
+    evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, ent_ids=ent_ids, report_step=val_step)
 
     model.eval()
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
@@ -139,13 +142,14 @@ if __name__ == '__main__':
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
-                            label_path=config.train_data_mentions)
+                            label_path=config.train_data_mentions,
+                            vocab=vocab)
     vocab_size = train_data.vocab.size
 
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,
                           label_path=config.val_data_mentions,
-                          vocab=None)
+                          vocab=vocab)
 
     # building model
     # bert
@@ -163,6 +167,7 @@ if __name__ == '__main__':
     train(dataset=train_data,
           model=model,
           device=device,
+          vocab=vocab,
           num_epochs=num_epochs,
           batch_size=batch_size,
           learning_rate=learning_rate,

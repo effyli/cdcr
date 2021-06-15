@@ -1,3 +1,4 @@
+from typing import List
 import torch
 import numpy as np
 
@@ -5,7 +6,7 @@ from .ops import sum_to_int, safe_div
 
 
 class Evaluator:
-    def __init__(self, total_steps: int, batch_size: int, report_step: int = 100):
+    def __init__(self, total_steps: int, batch_size: int, ent_ids: List, report_step: int = 100):
         self.batch_size = batch_size
         self.total_loss = 0
         self.correct_preds = 0
@@ -26,6 +27,8 @@ class Evaluator:
         self.step_preds = 0
         self.step_correct_pred_labels = 0
         self.correct_preds_labels = 0
+
+        self.ent_ids = ent_ids
 
     def update(self, predicted_labels, labels, loss, num_tokens):
         """
@@ -48,7 +51,7 @@ class Evaluator:
             batch_golden_labels += sum_to_int(label[:num_token] != 0)
             batch_preds += sum_to_int(predicted_label[: num_token] != 0)
             for i in range(num_token):
-                if label[i] != 0 and predicted_label[i] == label[i]:
+                if label[i] in self.ent_ids and predicted_label[i] == label[i]:
                     batch_correct_preds_labels += 1
 
         self.step_correct_pred += batch_correct_preds_with_unk

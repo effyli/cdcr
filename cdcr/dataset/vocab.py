@@ -122,6 +122,7 @@ class Vocab:
 
         # entity_name: entity
         self.__entities_dict = {}
+        self.__ent_ids = []
 
     def build(self, corpus: Dict, labels: Union[Labels, List]):
         """
@@ -147,6 +148,10 @@ class Vocab:
 
         self.__reversed_dictionary = {val: key for (key, val) in self.__dictionary.items()}
 
+        for name, id in self.__dictionary.items():
+            if name in self.__entities_dict:
+                self.__ent_ids.append(id)
+
     @property
     def size(self):
         return len(self.__dictionary) + 1
@@ -156,6 +161,9 @@ class Vocab:
         if token_id is not None:
             return token_id
         return len(self.__dictionary)
+
+    def get_ent_ids(self):
+        return self.__ent_ids
 
     def vectorize(self, sequence: Iterable[Any]):
         """
