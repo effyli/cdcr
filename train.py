@@ -58,7 +58,7 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, vocab=vocab)
+            _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, vocab=vocab)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
@@ -174,7 +174,7 @@ if __name__ == '__main__':
           val_dataset=val_data)
 
     if config.save_model:
-        model.save(config.save_model)
+        model.save(config.save_model + 'model')
 
 
 
