@@ -105,6 +105,7 @@ class Labels:
 
     def get_name_by_token(self, token):
         return str(self.__clusters[token[4]]) if token[4] in self.__clusters else token[2]
+
     def get_copy_name_by_token(self, token):
         return str(self.__clusters[token[4]]) if token[4] in self.__clusters else '<copy>'
 
@@ -204,9 +205,9 @@ def build_vocab(config):
     import json
     vocab = Vocab(entities_dict=bool(config.decoder == "copy"))
 
-    label_path = "../data/ecb/mentions/train_entities.json"
-    val_label_path = "../data/ecb/mentions/dev_entities.json"
-    test_label_path = "../data/ecb/mentions/test_entities.json"
+    label_path = config.train_data_mentions
+    val_label_path = config.val_data_mentions
+    test_label_path = config.test_data_mentions
     with open(label_path, 'r') as f:
         labels = json.load(f)
     with open(val_label_path, 'r') as f:
@@ -214,9 +215,9 @@ def build_vocab(config):
     with open(test_label_path, 'r') as f:
         labels.extend(json.load(f))
 
-    data_path = "../data/ecb/mentions/train.json"
-    val_data_path = "../data/ecb/mentions/dev.json"
-    test_data_path = "../data/ecb/mentions/test.json"
+    data_path = config.train_data
+    val_data_path = config.val_data
+    test_data_path = config.test_data
     data_paths = [data_path, val_data_path, test_data_path]
     data = {}
     for path in data_paths:

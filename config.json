@@ -3,6 +3,8 @@
   "train_data_mentions": "../data/ecb/mentions/train_entities.json",
   "val_data": "../data/ecb/mentions/dev.json",
   "val_data_mentions": "../data/ecb/mentions/dev_entities.json",
+  "test_data": "../data/ecb/mentions/test.json",
+  "test_data_mentions": "../data/ecb/mentions/test_entities.json",
   "vocab_path": "../data/",
   "vocab_type": "vocab_entities.pkl",
   "save_model": "../models/",
