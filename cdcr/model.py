@@ -7,8 +7,7 @@ from transformers import AutoModel
 
 from .encoder.encoder import Encoder, load_encoder
 from .encoder.independent_encoder import IndependentEncoder
-from .decoder.decoder import Decoder, load_decoder
-from .decoder.rnn_decoder import RNNDecoder
+from .decoder import Decoder, load_decoder, RNNDecoder, CopyDecoder
 
 
 class CDCRModel(nn.Module):
@@ -70,6 +69,7 @@ def build_model(encoder_name: str,
                 vocab_size: int,
                 sos_id: int,
                 eos_id: int,
+                copy_id: int = None,
                 pre_trained_emb: AutoModel = None,
                 ):
     # create encoder
@@ -83,6 +83,15 @@ def build_model(encoder_name: str,
                              vocab_size=vocab_size,
                              sos_id=sos_id,
                              eos_id=eos_id)
+    elif decoder_name == "copy":
+        decoder = CopyDecoder(
+            hidden_size=hidden_size,
+            input_size=input_size,
+            vocab_size=vocab_size,
+            sos_id=sos_id,
+            eos_id=eos_id,
+            copy_id=copy_id
+        )
 
     return CDCRModel(encoder, decoder)
 

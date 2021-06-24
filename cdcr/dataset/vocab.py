@@ -105,6 +105,8 @@ class Labels:
 
     def get_name_by_token(self, token):
         return str(self.__clusters[token[4]]) if token[4] in self.__clusters else token[2]
+    def get_copy_name_by_token(self, token):
+        return str(self.__clusters[token[4]]) if token[4] in self.__clusters else '<copy>'
 
 
 class Vocab:
@@ -112,8 +114,8 @@ class Vocab:
     A vocabulary class for decoder to generate tokens from.
     """
 
-    def __init__(self, min_frequency: int = 2, min_sentence_freq: int = 1):
-        self.__special_symbols = ["<unk>", "<pad>", "<sos>", "<eos>"]
+    def __init__(self, min_frequency: int = 1, min_sentence_freq: int = 1, entities_dict = True):
+        self.__special_symbols = ["<unk>", "<pad>", "<sos>", "<eos>", "<copy>"]
 
         self.__min_frequency = min_frequency
         self.__min_sentence_freq = min_sentence_freq
@@ -122,7 +124,10 @@ class Vocab:
 
         # entity_name: entity
         self.__entities_dict = {}
+        self.__reversed_entities_dict = {}
         self.__ent_ids = []
+
+        self.entities_dict = entities_dict
 
     def build(self, corpus: Dict, labels: Union[Labels, List]):
         """
@@ -134,23 +139,31 @@ class Vocab:
         labels = labels if isinstance(labels, Labels) else Labels(labels)
         all_counts = defaultdict(lambda: 0)
         self.__entities_dict = {str(ent): ent for _, ent in labels.get_clusters().items()}
+        self.__reversed_entities_dict = {val: key for (key, val) in self.__entities_dict.items()}
 
         for special_symbol in self.__special_symbols:
             self.__dictionary[special_symbol] = len(self.__dictionary)
 
-        for doc_name, tokens in corpus.items():
-            for token in tokens:
-                token_str = labels.get_name_by_token(token)
-                all_counts[token_str] += 1
-                if token_str not in self.__dictionary and \
-                        (all_counts[token_str] >= self.__min_frequency or token_str in self.__entities_dict):
-                    self.__dictionary[token_str] = len(self.__dictionary)
+        if not self.entities_dict:
+            for doc_name, tokens in corpus.items():
+                for token in tokens:
+                    token_str = labels.get_name_by_token(token)
+                    all_counts[token_str] += 1
+                    if token_str not in self.__dictionary and \
+                            (all_counts[token_str] >= self.__min_frequency or token_str in self.__entities_dict):
+                        self.__dictionary[token_str] = len(self.__dictionary)
+            for name, id in self.__dictionary.items():
+                if name in self.__entities_dict:
+                    self.__ent_ids.append(id)
 
+        else:
+            for key, val in self.__entities_dict.items():
+                if str(val) not in self.__dictionary and (len(val.mentions) >= self.__min_frequency):
+                    self.__dictionary[str(val)] = len(self.__dictionary)
+            self.__ent_ids = list(self.__dictionary.values())
+
+        # getting reversed dictionary
         self.__reversed_dictionary = {val: key for (key, val) in self.__dictionary.items()}
-
-        for name, id in self.__dictionary.items():
-            if name in self.__entities_dict:
-                self.__ent_ids.append(id)
 
     @property
     def size(self):
@@ -186,9 +199,11 @@ class Vocab:
 
 
 def build_vocab(config):
+    # build vocab for entities / all tokens
     # optional: build vocabulary across dataset
     import json
-    vocab = Vocab()
+    vocab = Vocab(entities_dict=bool(config.decoder == "copy"))
+
     label_path = "../data/ecb/mentions/train_entities.json"
     val_label_path = "../data/ecb/mentions/dev_entities.json"
     test_label_path = "../data/ecb/mentions/test_entities.json"
@@ -213,5 +228,7 @@ def build_vocab(config):
 
     vocab.build(data, labels)
 
-    with open(config.vocab_path, 'wb') as f:
+    with open(config.vocab_path + config.vocab_type, 'wb') as f:
         pickle.dump(vocab, f)
+
+

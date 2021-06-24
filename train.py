@@ -13,16 +13,24 @@ from cdcr.utils.evaluation import Evaluator
 from cdcr.dataset.vocab import build_vocab, Vocab
 
 
-def calculate_loss(outputs, targets):
+def calculate_loss(model_out, targets):
     labels = targets['labels']
     seq_lens = targets['num_tokens']
+    actions = targets['actions']
+
     loss = 0
     criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    bi_criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
+
+    log_probs = model_out["log_probs"]
+    outputs = model_out["outputs"]
     # calculate per sentence
-    for output, label, seq_len in zip(outputs, labels, seq_lens):
+    for output, label, seq_len, log_prob, action in zip(outputs, labels, seq_lens, log_probs, actions):
         loss += criterion(output[:seq_len], label[:seq_len])
+        loss += bi_criterion(log_prob[:seq_len], action[:seq_len].float())
 
     # loss per token / sentence?
+    # TODO: loss per mention?
     loss /= sum(seq_lens).item()
     return loss
 
@@ -30,6 +38,7 @@ def calculate_loss(outputs, targets):
 def train(dataset: SeqDataset,
           model: CDCRModel,
           vocab: Vocab,
+          copy_id: int,
           device: torch.device,
           num_epochs: int,
           batch_size: int,
@@ -50,7 +59,7 @@ def train(dataset: SeqDataset,
         epoch_loss = 0
         for inputs, targets in data_loader:
             optimizer.zero_grad()
-            # get relation scores
+            # get outputs
             outputs = model(inputs, targets)
             # get loss
             loss = calculate_loss(outputs, targets)
@@ -58,12 +67,12 @@ def train(dataset: SeqDataset,
             # backprop
             loss.backward()
             optimizer.step()
-            _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, vocab=vocab)
+            # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, copy_id=copy_id)
 
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
         # validation
-        val_epoch_loss = evaluate(dataset=val_dataset, model=model,vocab=vocab, device=device, batch_size=1)
+        val_epoch_loss = evaluate(dataset=val_dataset, model=model, copy_id=copy_id, device=device, batch_size=1)
         if val_epoch_loss < best_epoch_loss:
             best_epoch_loss = val_epoch_loss
             best_model = model.state_dict()
@@ -73,7 +82,7 @@ def train(dataset: SeqDataset,
 
 def evaluate(dataset: SeqDataset,
              model: CDCRModel,
-             vocab: Vocab,
+             copy_id: int,
              device: torch.device,
              batch_size: int,
              val_step: int = 1):
@@ -83,29 +92,27 @@ def evaluate(dataset: SeqDataset,
         dataset: validation/test dataset used for evaluation
 
     """
-    ent_ids = vocab.get_ent_ids()
     # initialize a evaluator for related metrics
-    evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, ent_ids=ent_ids, report_step=val_step)
+    evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, copy_id=copy_id, report_step=val_step)
 
     model.eval()
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
     for inputs, targets in data_loader:
-        outputs = model(inputs, targets)
-        batch_loss = calculate_loss(outputs, targets)
+        model_out = model(inputs, targets)
+        outputs = model_out["outputs"]
+        batch_loss = calculate_loss(model_out, targets)
         predicted_labels = torch.argmax(outputs.cpu(), dim=2)
         labels = targets['labels'].cpu()
         # calculate P,R,F1 score per batch
-        evaluator.update(predicted_labels, labels, batch_loss.item(), targets['num_tokens'].cpu())
-        if evaluator.to_report():
-            step_loss, step_acc, step_recall, step_precision = evaluator.step_report()
+        evaluator.update(predicted_labels, labels, batch_loss, targets['num_tokens'].cpu())
+        if evaluator.is_report():
+            step_loss, step_acc, step_recall, step_precision, step_f_1 = evaluator.report()
             print("Eval step {}, out of {}".format(evaluator.step, len(dataset)))
             print("Accuracy of current {} samples is {}, recall is {}, precision is {}".format(val_step, step_acc, step_recall, step_precision))
             print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
         torch.cuda.empty_cache()
-    total_loss, total_acc, total_recall, total_precision = evaluator.final_report()
-    print("Overall accuracy for all val data: {}, loss is: {}, recall is {}, precision is {}".format(total_acc, total_loss, total_recall, total_precision))
     model.train()
-    return total_loss
+    return step_loss
 
 
 if __name__ == '__main__':
@@ -131,13 +138,16 @@ if __name__ == '__main__':
     # loading spanBert tokenizer
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
 
-    # build_vocab(config)
+    vocab_name = config.vocab_type
+    if not os.path.exists(config.vocab_path + vocab_name):
+        build_vocab(config)
     # loading pre-built vocab
-    with open(config.vocab_path, 'rb') as f:
+    with open(config.vocab_path + vocab_name, 'rb') as f:
         vocab = pickle.load(f)
 
     sos_id = vocab["<sos>"]
     eos_id = vocab["<eos>"]
+    copy_id = vocab["<copy>"]
 
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
@@ -162,12 +172,14 @@ if __name__ == '__main__':
                         vocab_size=vocab_size,
                         sos_id=sos_id,
                         eos_id=eos_id,
+                        copy_id=copy_id,
                         pre_trained_emb=bert_model)
     model.to(device)
     train(dataset=train_data,
           model=model,
           device=device,
           vocab=vocab,
+          copy_id=copy_id,
           num_epochs=num_epochs,
           batch_size=batch_size,
           learning_rate=learning_rate,
