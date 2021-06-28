@@ -101,7 +101,7 @@ class CopyDecoder(Decoder):
             for i in range(batch_size):
                 # get the log prob
                 action = batch_actions[i]
-                batch_log_probs.append(bernoulli_action_log_prob(logit[0][i], action))
+                batch_log_probs.append(bernoulli_action_log_prob(logit[0][i], action).to(device))
                 # during training, we use ground truth actions
                 # if not copy, try to generate from output vocabulary conditioned on current generated results not on decision sequence
                 # TODO: unroll the batch. within one batch, there are copy and not copy
@@ -113,10 +113,10 @@ class CopyDecoder(Decoder):
                 # if copy, generate copy id
                 # Question: will the next decision made on copy id?
                 else:
-                    idx = torch.tensor([4])
-                    output = torch.zeros(len(idx), self.vocab_size).scatter_(1, idx.unsqueeze(1), 1.)
-                    batch_output.append(output.unsqueeze(0).to(device))
-            log_probs.append(torch.tensor(batch_log_probs))
+                    idx = torch.tensor([4]).to(device)
+                    output = torch.zeros(len(idx), self.vocab_size).to(device).scatter_(1, idx.unsqueeze(1), 1.).to(device)
+                    batch_output.append(output.unsqueeze(0))
+            log_probs.append(torch.tensor(batch_log_probs).to(device))
             outputs.append(torch.stack(batch_output))
 
             rnn_input = self.embedding(targets["labels"][:, step])

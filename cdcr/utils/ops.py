@@ -2,11 +2,11 @@ import torch
 import torch.nn.functional as F
 
 
-def sum_to_int( tensor):
+def sum_to_int(tensor):
     return int(tensor.float().sum().item())
 
 
-def safe_div( a, b):
+def safe_div(a, b):
     return a / b if b else 0
 
 

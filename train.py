@@ -27,7 +27,7 @@ def calculate_loss(model_out, targets):
     # calculate per sentence
     for output, label, seq_len, log_prob, action in zip(outputs, labels, seq_lens, log_probs, actions):
         loss += criterion(output[:seq_len], label[:seq_len])
-        loss += bi_criterion(log_prob[:seq_len], action[:seq_len].float())
+        loss += bi_criterion(log_prob[:seq_len], action[:seq_len])
 
     # loss per token / sentence?
     # TODO: loss per mention?
@@ -153,7 +153,8 @@ if __name__ == '__main__':
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
                             label_path=config.train_data_mentions,
-                            vocab=vocab)
+                            vocab=vocab,
+                            sampling="over-sampling")
     vocab_size = train_data.vocab.size
 
     val_data = SeqDataset(data_path=config.val_data,

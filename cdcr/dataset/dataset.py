@@ -12,13 +12,15 @@ from ..utils.ops import stack_with_padding
 
 class SeqDataset(Dataset):
     """
-    Format a sequence input for Encoder from text, including tokenization.
+    Format a sequence input for Encoder from text, including tokenization, sampling.
+    Current sampling method is over-sampling.
     """
     def __init__(self,
                  data_path: str,
                  tokenizer: AutoTokenizer,
                  vocab: Vocab = None,
-                 label_path: str = None):
+                 label_path: str = None,
+                 sampling: str = None):
 
         with open(data_path, 'r') as f:
             self.data = json.load(f)
@@ -49,9 +51,31 @@ class SeqDataset(Dataset):
                     local_s_id += 1
                 t_id = token[1] - 1
                 sent.append((token[0], t_id, token[2], doc_name, token[-1]))
-
+        # sampling
+        if sampling:
+            self.idx_to_sample = self.__sampling(sampling_method=sampling, idx_to_sample=self.idx_to_sample)
         # spanBert related
         self.tokenizer = tokenizer
+
+    def __sampling(self, sampling_method, idx_to_sample: List, num_samples: int=10) -> List:
+        """
+        Sampling method for training data: currently supports over-sampling.
+        Over-sampling: simply sample data that contains labels.
+        TODO: supports sampling between classes(entities)
+        :param sampling_method:
+        :param idx_to_sample:
+        :return:
+        """
+        if sampling_method == "over-sampling":
+            samples = []
+            for sample in idx_to_sample:
+                samples.append(sample)
+                for token in sample:
+                    if token[-1] != 0:
+                        for _ in range(num_samples - 1):
+                            samples.append(sample)
+                        break
+        return samples
 
     def __len__(self) -> int:
         return len(self.idx_to_sample)
@@ -72,7 +96,7 @@ class SeqDataset(Dataset):
         targets = self.vocab.vectorize(targets_str)
         copy_id = self.vocab["<copy>"]
         actions = [1 if t == copy_id else 0 for t in targets]
-        return torch.tensor(inputs), torch.tensor(targets), torch.tensor(actions)
+        return torch.tensor(inputs), torch.tensor(targets), torch.tensor(actions).float()
 
     def batch_fn(self, samples: List, device: torch.device) -> Tuple[Dict, Dict]:
         """

@@ -203,7 +203,7 @@ def build_vocab(config):
     # build vocab for entities / all tokens
     # optional: build vocabulary across dataset
     import json
-    vocab = Vocab(entities_dict=bool(config.decoder == "copy"))
+    vocab = Vocab(entities_dict=bool(config.decoder == "copy"), min_frequency=config.min_frequency)
 
     label_path = config.train_data_mentions
     val_label_path = config.val_data_mentions
