@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Iterable, List, Any, Dict, Union
 from dataclasses import dataclass
 
+
 @dataclass(eq=True, frozen=True)
 class Mention:
     """
@@ -231,5 +232,6 @@ def build_vocab(config):
 
     with open(config.vocab_path + config.vocab_type, 'wb') as f:
         pickle.dump(vocab, f)
+    print("New vocab built!")
 
 

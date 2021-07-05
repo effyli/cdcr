@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from transformers import AutoModel
+
 from .decoder import Decoder
 from ..utils.model_utils import bernoulli_action_log_prob
 
@@ -20,23 +22,27 @@ class CopyDecoder(Decoder):
                  copy_id: int,
                  input_size: int,
                  vocab_size: int,
-                 bidirectional: bool = False):
+                 pre_trained_emb: AutoModel = None,
+                 bidirectional: bool = True):
         """
         Args:
             hidden_size: the hidden dimension for LSTM
             input_size: the dimension from the output of encoder
             vocab_size: number of classes/entities possible to output at each timestep
         """
-        super().__init__(hidden_size, input_size, sos_id, eos_id, vocab_size)
+        super().__init__(hidden_size, input_size, sos_id, eos_id, vocab_size, pre_trained_emb)
         self.bidirectional = bidirectional
 
-        self.rnn = nn.GRU(hidden_size, hidden_size)
-        # should we use embedding for the output?
-        self.embedding = nn.Embedding(vocab_size, hidden_size)
+        self.rnn = nn.GRU(input_size, hidden_size, bidirectional=bidirectional)
+
+        if pre_trained_emb:
+            self.embedding = pre_trained_emb
+        else:
+            self.embedding = nn.Embedding(vocab_size, hidden_size)
 
         # decision making for copy
         self.copy = 1
-        self.decision_making = nn.Linear(hidden_size, 1)
+        self.decision_making = nn.Linear(hidden_size * (2 if bidirectional else 1), 1)
 
         self.output_layer = nn.Linear(
             hidden_size * (2 if bidirectional else 1), vocab_size, bias=False)
@@ -51,7 +57,7 @@ class CopyDecoder(Decoder):
         self.copy_id = copy_id
         self.vocab_size = vocab_size
 
-    def forward(self, initial_state, targets):
+    def forward(self, initial_state, inputs, targets):
         """
         Estimate the distribution over vocabulary at each timestep
         Shapes:
@@ -72,15 +78,18 @@ class CopyDecoder(Decoder):
 
         actions = targets['actions']
         # create <sos> token as the first time step input
-        initial_input = torch.tensor([self.sos_id for _ in range(batch_size)]).to(device)
-
-        rnn_input = self.embedding(initial_input)
+        # initial_input = torch.tensor([self.sos_id for _ in range(batch_size)]).to(device)
+        initial_input = inputs["sentences"][:, 0].unsqueeze(1)
+        rnn_input = self.embedding(initial_input)[0].squeeze(1)
         rnn_hidden = initial_state
         outputs = []
         log_probs = []
 
         rnn_input = torch.unsqueeze(rnn_input, 0)
-        rnn_hidden = torch.unsqueeze(rnn_hidden, 0)
+        if self.bidirectional:
+            rnn_hidden = torch.stack([rnn_hidden, rnn_hidden], 0)
+        else:
+            rnn_hidden = torch.unsqueeze(rnn_hidden, 0)
 
         # used for inference
         batch_decisions = torch.tensor([self.copy for _ in range(batch_size)]).to(device)
@@ -88,7 +97,7 @@ class CopyDecoder(Decoder):
 
         # TODO: the masking?
         # for each time step we first make a decision of copy or not
-        for step in range(num_steps):
+        for step in range(1, num_steps):
             rnn_output, rnn_hidden = self.rnn(rnn_input, rnn_hidden)
             # get the logit, used for calculate the log prob
             logit = self.decision_making(rnn_output)
@@ -119,7 +128,7 @@ class CopyDecoder(Decoder):
             log_probs.append(torch.tensor(batch_log_probs).to(device))
             outputs.append(torch.stack(batch_output))
 
-            rnn_input = self.embedding(targets["labels"][:, step])
+            rnn_input = self.embedding(inputs["sentences"][:, step].unsqueeze(1))[0].squeeze(1)
             rnn_input = torch.unsqueeze(rnn_input, 0)
 
         log_probs = torch.stack(log_probs).permute(1, 0)

@@ -61,7 +61,7 @@ class RNNDecoder(Decoder):
 
         return scores
 
-    def teacher_forcing(self, initial_state, targets):
+    def teacher_forcing(self, initial_state, inputs, targets):
         """
         Given the initial states from the encoder, predict the distribution over
         the output vocabulary for each time step with known input.

@@ -31,7 +31,7 @@ def calculate_loss(model_out, targets):
 
     # loss per token / sentence?
     # TODO: loss per mention?
-    loss /= sum(seq_lens).item()
+    # loss /= sum(seq_lens).item()
     return loss
 
 
@@ -108,7 +108,7 @@ def evaluate(dataset: SeqDataset,
         if evaluator.is_report():
             step_loss, step_acc, step_recall, step_precision, step_f_1 = evaluator.report()
             print("Eval step {}, out of {}".format(evaluator.step, len(dataset)))
-            print("Accuracy of current {} samples is {}, recall is {}, precision is {}".format(val_step, step_acc, step_recall, step_precision))
+            print("Accuracy of current {} samples is {}, recall is {}, precision is {}, f1 is {}".format(val_step, step_acc, step_recall, step_precision, step_f_1))
             print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
         torch.cuda.empty_cache()
     model.train()

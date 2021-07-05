@@ -22,7 +22,7 @@ class CDCRModel(nn.Module):
 
     def forward(self, inputs, outputs=None):
         hidden_states = self.encoder(inputs)
-        relation_scores = self.decoder(hidden_states, outputs)
+        relation_scores = self.decoder(hidden_states, inputs, outputs)
         return relation_scores
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
@@ -90,7 +90,8 @@ def build_model(encoder_name: str,
             vocab_size=vocab_size,
             sos_id=sos_id,
             eos_id=eos_id,
-            copy_id=copy_id
+            copy_id=copy_id,
+            pre_trained_emb=pre_trained_emb
         )
 
     return CDCRModel(encoder, decoder)

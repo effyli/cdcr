@@ -87,7 +87,7 @@ class SeqDataset(Dataset):
         """
         sent = self.idx_to_sample[index]
         # tokenize inputs using spanBert
-        inputs = [self.tokenizer.encode(token[2], add_special_tokens=True)[1] for token in sent]
+        inputs = self.tokenizer.encode(' '.join(t[2] for t in sent))
         if not self.entities_vocab:
             # getting targets
             targets_str = [self.labels.get_name_by_token(token) for token in sent]
