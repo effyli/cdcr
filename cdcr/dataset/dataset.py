@@ -86,7 +86,7 @@ class SeqDataset(Dataset):
         Used for training.
         """
         sent = self.idx_to_sample[index]
-        # tokenize inputs using spanBert
+        # tokenize inputs using spanBert, adding special tokens
         inputs = self.tokenizer.encode(' '.join(t[2] for t in sent))
         if not self.entities_vocab:
             # getting targets

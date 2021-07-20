@@ -24,7 +24,7 @@ class RNNDecoder(Decoder):
         Args:
             hidden_size: the hidden dimension for LSTM
             input_size: the dimension from the output of encoder
-            vocab_size: number of classes/entities possible to output at each timestep
+            vocab_size: number of classes/entities possible to output at each time step
         """
         super().__init__(hidden_size, input_size, sos_id, eos_id, vocab_size)
         self.bidirectional = bidirectional
