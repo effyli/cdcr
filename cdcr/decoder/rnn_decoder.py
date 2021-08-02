@@ -24,7 +24,7 @@ class RNNDecoder(Decoder):
         Args:
             hidden_size: the hidden dimension for LSTM
             input_size: the dimension from the output of encoder
-            vocab_size: number of classes/entities possible to output at each time step
+            vocab_size: number of classes/entities possible to output at each timestep
         """
         super().__init__(hidden_size, input_size, sos_id, eos_id, vocab_size)
         self.bidirectional = bidirectional
@@ -54,14 +54,13 @@ class RNNDecoder(Decoder):
         """
         if self.initial_transform is not None:
             initial_state = self.initial_transform(initial_state)
-
         outputs = self.teacher_forcing(initial_state, targets)
         scores = F.log_softmax(outputs, dim=1)
         predicted_labels = torch.argmax(scores, dim=2)
 
         return scores
 
-    def teacher_forcing(self, initial_state, inputs, targets):
+    def teacher_forcing(self, initial_state, targets):
         """
         Given the initial states from the encoder, predict the distribution over
         the output vocabulary for each time step with known input.

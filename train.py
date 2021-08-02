@@ -138,24 +138,34 @@ if __name__ == '__main__':
     # loading spanBert tokenizer
     tokenizer = AutoTokenizer.from_pretrained("SpanBERT/spanbert-base-cased")
 
-    vocab_name = config.vocab_type
-    if not os.path.exists(config.vocab_path + vocab_name):
-        build_vocab(config)
-    # loading pre-built vocab
-    with open(config.vocab_path + vocab_name, 'rb') as f:
-        vocab = pickle.load(f)
+    if 'ecb' in config.train_data:
+        vocab_name = config.vocab_type
+        if not os.path.exists(config.vocab_path + vocab_name):
+            build_vocab(config)
+        # loading pre-built vocab
+        with open(config.vocab_path + vocab_name, 'rb') as f:
+            vocab = pickle.load(f)
+    elif 'ontoNotes' in config.train_data:
+        vocab = None
 
-    sos_id = vocab["<sos>"]
-    eos_id = vocab["<eos>"]
-    copy_id = vocab["<copy>"]
+    if vocab:
+        sos_id = vocab["<sos>"]
+        eos_id = vocab["<eos>"]
+        copy_id = vocab["<copy>"]
+    else:
+        # pre-define a list of special ids
+        # in Bert tokenizer vocab, vocab['[PAD]'] = 0, and from key 1 to 99 are unused
+        sos_id, eos_id, copy_id = 1, 2, 3
 
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
                             label_path=config.train_data_mentions,
-                            vocab=vocab,
-                            sampling="over-sampling")
-    vocab_size = train_data.vocab.size
+                            vocab=vocab)
+    if vocab:
+        vocab_size = train_data.vocab.size
+    else:
+        vocab_size = None
 
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,

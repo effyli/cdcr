@@ -12,12 +12,12 @@ class IndependentEncoder(Encoder):
 
     def __init__(self, pre_trained_emb: AutoModel = None):
         super().__init__(pre_trained_emb)
-        # TODO: adding attention?
         self.pre_trained_emb = pre_trained_emb
 
     def forward(self, inputs):
         # using pre-trained bert model, last layer hidden states
-        token_embeddings = self.pre_trained_emb(inputs["sentences"])[0]
+        outputs = self.pre_trained_emb(inputs["sentences"])
+        token_embeddings = outputs[0]
 
         # mask padding
         masks = torch.zeros_like(inputs["sentences"], dtype=torch.float)
@@ -27,6 +27,6 @@ class IndependentEncoder(Encoder):
         sum_token_embeddings = token_embeddings.sum(1)
         sum_token_embeddings /= torch.unsqueeze(inputs["num_tokens"], 1)
 
-        return sum_token_embeddings
+        return token_embeddings, sum_token_embeddings
 
 

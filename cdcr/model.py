@@ -7,7 +7,7 @@ from transformers import AutoModel
 
 from .encoder.encoder import Encoder, load_encoder
 from .encoder.independent_encoder import IndependentEncoder
-from .decoder import Decoder, load_decoder, RNNDecoder, CopyDecoder
+from .decoder import Decoder, load_decoder, RNNDecoder, CopyDecoder, CopyPtrDecoder
 
 
 class CDCRModel(nn.Module):
@@ -21,8 +21,8 @@ class CDCRModel(nn.Module):
         self.decoder = decoder
 
     def forward(self, inputs, outputs=None):
-        hidden_states = self.encoder(inputs)
-        relation_scores = self.decoder(hidden_states, inputs, outputs)
+        encoder_outputs, hidden_states = self.encoder(inputs)
+        relation_scores = self.decoder(encoder_outputs, hidden_states, inputs, outputs)
         return relation_scores
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
@@ -66,9 +66,9 @@ def build_model(encoder_name: str,
                 decoder_name: str,
                 hidden_size: int,
                 input_size: int,
-                vocab_size: int,
                 sos_id: int,
                 eos_id: int,
+                vocab_size: int = None,
                 copy_id: int = None,
                 pre_trained_emb: AutoModel = None,
                 ):
@@ -91,6 +91,15 @@ def build_model(encoder_name: str,
             sos_id=sos_id,
             eos_id=eos_id,
             copy_id=copy_id,
+            pre_trained_emb=pre_trained_emb
+        )
+    elif decoder_name == "copy_pointer":
+        decoder = CopyPtrDecoder(
+            hidden_size=hidden_size,
+            sos_id=sos_id,
+            eos_id=eos_id,
+            copy_id=copy_id,
+            input_size=input_size,
             pre_trained_emb=pre_trained_emb
         )
 

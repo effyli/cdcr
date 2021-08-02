@@ -1,6 +1,6 @@
 {
-  "train_data": "../data/ecb/mentions/train.json",
-  "train_data_mentions": "../data/ecb/mentions/train_entities.json",
+  "train_data": "../data/ontoNotes/train.english.512.jsonlines",
+  "train_data_mentions": "../data/ontoNotes/train.english.v4_gold_conll",
   "val_data": "../data/ecb/mentions/dev.json",
   "val_data_mentions": "../data/ecb/mentions/dev_entities.json",
   "test_data": "../data/ecb/mentions/test.json",
@@ -12,8 +12,8 @@
 
   "batch_size": 64,
   "encoder": "independent",
-  "decoder": "copy",
-  "hidden_size": 128,
+  "decoder": "copy_pointer",
+  "hidden_size": 768,
   "bert_size": 768,
   "num_epochs": 10,
   "learning_rate": 0.001
