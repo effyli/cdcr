@@ -22,7 +22,7 @@ def calculate_loss(model_out, targets):
     criterion = torch.nn.CrossEntropyLoss(reduction='sum')
     bi_criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
 
-    log_probs = model_out["log_probs"]
+    log_probs = model_out["action_probs"]
     outputs = model_out["outputs"]
     # calculate per sentence
     for output, label, seq_len, log_prob, action in zip(outputs, labels, seq_lens, log_probs, actions):

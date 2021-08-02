@@ -157,7 +157,8 @@ class CopyPtrDecoder(Decoder):
             initial_state = self.initial_transform(initial_state)
 
         batch_size = initial_state.size(0)
-        max_seq_len = inputs['sentences'].size(1)
+        max_input_len = inputs['sentences'].size(1)
+        max_output_len = max(targets['num_tokens'])
         device = initial_state.device
 
         actions = targets['actions']
@@ -176,9 +177,9 @@ class CopyPtrDecoder(Decoder):
         batch_decisions = batch_decisions.unsqueeze(0).unsqueeze(-1)
 
         # create mask tensors
-        range_tensor = torch.arange(max_seq_len, device=device).expand(
-            batch_size, max_seq_len, max_seq_len)
-        each_len_tensor = inputs['num_tokens'].view(-1, 1, 1).expand(batch_size, max_seq_len, max_seq_len)
+        range_tensor = torch.arange(max_input_len, device=device).expand(
+            batch_size, max_input_len, max_input_len)
+        each_len_tensor = inputs['num_tokens'].view(-1, 1, 1).expand(batch_size, max_input_len, max_input_len)
 
         row_mask_tensor = (range_tensor < each_len_tensor)
         col_mask_tensor = row_mask_tensor.transpose(1, 2)
@@ -193,9 +194,13 @@ class CopyPtrDecoder(Decoder):
         end_ant_log_pointer_scores = []
         end_ant_pointer_argmaxs = []
 
+        pointing_starts = [False for _ in range(batch_size)]
+        pointing_ends = [False for _ in range(batch_size)]
+        batch_input_index = [self.sos_id for _ in range(batch_size)]
+
         # for each time step we first make a decision of copy or not
         # check if all batches have done training
-        for step in range(max_seq_len):
+        for step in range(max_output_len):
             rnn_hidden = self.rnn(rnn_input, rnn_hidden)
             h_step, c_step = rnn_hidden
             # get the logit, used for calculate the log prob
@@ -206,9 +211,6 @@ class CopyPtrDecoder(Decoder):
 
             batch_action_probs = []
             batch_output = []
-            sub_mask = mask_tensor[:, step, :].float()
-            pointing_starts = [False for _ in range(batch_size)]
-            pointing_ends = [False for _ in range(batch_size)]
 
             batch_rnn_input = []
 
@@ -220,6 +222,7 @@ class CopyPtrDecoder(Decoder):
                 pointing_end = pointing_ends[i]
 
                 batch_action_probs.append(bernoulli_action_log_prob(logit[i], action).to(device))
+                sub_mask = mask_tensor[:, batch_input_index[i], :].float()
                 sub_mask_i = sub_mask[i].unsqueeze(0)
                 # during training, we use ground truth actions
                 # if not copy, use a pointer net to point to specific token until next decision is copy
@@ -233,9 +236,11 @@ class CopyPtrDecoder(Decoder):
                     # Get the indices of maximum pointer
                     _, masked_argmax = masked_max(end_input_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_input_pointer_argmaxs.append(masked_argmax)
+                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
                     pointing_starts[i] = True
+                    pointing_ends[i] = False
 
                 elif pointing_start and not pointing_end and not action:
                     # predict the start position of antecedent span
@@ -243,8 +248,9 @@ class CopyPtrDecoder(Decoder):
                     start_ant_log_pointer_scores.append(start_ant_log_pointer_score)
                     _, masked_argmax = masked_max(start_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     start_ant_pointer_argmaxs.append(masked_argmax)
+                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
-                    batch_output.append(index_tensor)
+                    batch_output.append(index_tensor.unsqueeze(0))
 
                     pointing_ends[i] = True
                     pointing_starts[i] = False
@@ -254,6 +260,7 @@ class CopyPtrDecoder(Decoder):
                     end_ant_log_pointer_scores.append(end_ant_log_pointer_score)
                     _, masked_argmax = masked_max(end_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_ant_pointer_argmaxs.append(masked_argmax)
+                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
 
@@ -267,6 +274,8 @@ class CopyPtrDecoder(Decoder):
                     # (batch_size, hidden_size)
                     pointing_ends[i] = False
                     pointing_starts[i] = False
+                else:
+                    print("category not meet")
                 rnn_input = torch.gather(encoder_outputs, dim=1, index=index_tensor).squeeze(1)
                 batch_rnn_input.append(rnn_input)
             action_probs.append(torch.tensor(batch_action_probs).to(device))
@@ -275,5 +284,5 @@ class CopyPtrDecoder(Decoder):
 
         action_probs = torch.stack(action_probs).permute(1, 0)
         outputs = torch.stack(outputs).squeeze(2).squeeze(2).permute(1, 0, 2)
-        return {"action_probs": action_probs, "outputs": outputs}
+        return {"action_probs": action_probs, "outputs": outputs.float()}
 
