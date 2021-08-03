@@ -19,6 +19,7 @@ class SeqDataset(Dataset):
                  data_path: str,
                  tokenizer: AutoTokenizer,
                  vocab: Vocab = None,
+                 end_id: int = 3,
                  label_path: str = None,
                  sampling: str = None):
 
@@ -29,6 +30,7 @@ class SeqDataset(Dataset):
         self.action_not_copy = 0
         # copy id for targets
         self.copy_id = 0
+        self.end_id = end_id
 
         self.idx_to_sample = []
         # check if it's ecb/ontoNotes
@@ -94,6 +96,9 @@ class SeqDataset(Dataset):
                             doc_example[e_id][t_id][-1] = (c_id + 1, span_len)
                 for e in doc_example:
                     self.idx_to_sample.append(e)
+
+                # for debugging
+                # self.idx_to_sample = self.idx_to_sample[:10]
 
         # sampling
         if sampling:

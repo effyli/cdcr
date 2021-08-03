@@ -110,14 +110,16 @@ class CopyPtrDecoder(Decoder):
                  copy_id: int,
                  input_size: int,
                  pre_trained_emb: AutoModel,
+                 max_iterations: int=200,
                  bidirectional: bool = False):
         """
         Args:
             hidden_size: the hidden dimension for LSTM
             input_size: the dimension from the output of encoder
         """
-        super().__init__(hidden_size, input_size, sos_id, eos_id, pre_trained_emb)
+        super().__init__(hidden_size, sos_id, eos_id, copy_id, input_size, pre_trained_emb, max_iterations, bidirectional)
         self.bidirectional = bidirectional
+        self.max_iterations = max_iterations
 
         # decoding rnn
         self.rnn = nn.LSTMCell(input_size, hidden_size)
@@ -198,6 +200,8 @@ class CopyPtrDecoder(Decoder):
         pointing_ends = [False for _ in range(batch_size)]
         batch_input_index = [self.sos_id for _ in range(batch_size)]
 
+        is_finished = [False for _ in range(batch_size)]
+
         # for each time step we first make a decision of copy or not
         # check if all batches have done training
         for step in range(max_output_len):
@@ -248,7 +252,6 @@ class CopyPtrDecoder(Decoder):
                     start_ant_log_pointer_scores.append(start_ant_log_pointer_score)
                     _, masked_argmax = masked_max(start_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     start_ant_pointer_argmaxs.append(masked_argmax)
-                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
 
@@ -260,7 +263,6 @@ class CopyPtrDecoder(Decoder):
                     end_ant_log_pointer_scores.append(end_ant_log_pointer_score)
                     _, masked_argmax = masked_max(end_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_ant_pointer_argmaxs.append(masked_argmax)
-                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
 
@@ -268,12 +270,13 @@ class CopyPtrDecoder(Decoder):
                     pointing_starts[i] = False
                 # if copy, generate current input id
                 elif action:
-                    pointer = torch.tensor(i).to(device)
-                    index_tensor = pointer.unsqueeze(-1).expand(1, 1, self.hidden_size)
+                    pointer = batch_input_index[i]
+                    index_tensor = torch.tensor(pointer).unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
                     # (batch_size, hidden_size)
                     pointing_ends[i] = False
                     pointing_starts[i] = False
+                    batch_input_index[i] = pointer + 1 if pointer < max_input_len - 1 else pointer
                 else:
                     print("category not meet")
                 rnn_input = torch.gather(encoder_outputs, dim=1, index=index_tensor).squeeze(1)

@@ -38,6 +38,7 @@ def calculate_loss(model_out, targets):
 def train(dataset: SeqDataset,
           model: CDCRModel,
           vocab: Vocab,
+          config: list,
           copy_id: int,
           device: torch.device,
           num_epochs: int,
@@ -65,6 +66,7 @@ def train(dataset: SeqDataset,
             loss = calculate_loss(outputs, targets)
             epoch_loss += loss
             # backprop
+            loss.requires_grad = True
             loss.backward()
             optimizer.step()
             # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, copy_id=copy_id)
@@ -72,7 +74,7 @@ def train(dataset: SeqDataset,
         epoch_loss /= len(dataset)
         print("Epoch %d - Train Loss: %0.2f" % (epoch, epoch_loss))
         # validation
-        val_epoch_loss = evaluate(dataset=val_dataset, model=model, copy_id=copy_id, device=device, batch_size=1)
+        val_epoch_loss = evaluate(dataset=val_dataset, model=model, copy_id=copy_id, device=device, batch_size=1, val_step=config.val_step)
         if val_epoch_loss < best_epoch_loss:
             best_epoch_loss = val_epoch_loss
             best_model = model.state_dict()
@@ -101,7 +103,7 @@ def evaluate(dataset: SeqDataset,
         model_out = model(inputs, targets)
         outputs = model_out["outputs"]
         batch_loss = calculate_loss(model_out, targets)
-        predicted_labels = torch.argmax(outputs.cpu(), dim=2)
+        predicted_labels = outputs[:, :, 0].cpu()
         labels = targets['labels'].cpu()
         # calculate P,R,F1 score per batch
         evaluator.update(predicted_labels, labels, batch_loss, targets['num_tokens'].cpu())
@@ -145,8 +147,10 @@ if __name__ == '__main__':
         # loading pre-built vocab
         with open(config.vocab_path + vocab_name, 'rb') as f:
             vocab = pickle.load(f)
+        train_labels = config.train_data_mentions
     elif 'ontoNotes' in config.train_data:
         vocab = None
+        train_labels = None
 
     if vocab:
         sos_id = vocab["<sos>"]
@@ -155,21 +159,27 @@ if __name__ == '__main__':
     else:
         # pre-define a list of special ids
         # in Bert tokenizer vocab, vocab['[PAD]'] = 0, and from key 1 to 99 are unused
-        sos_id, eos_id, copy_id = 1, 2, 3
+        # here, the sos_id is relative id in the sentence
+        sos_id, eos_id, copy_id = 0, 2, 3
 
     # building dataset
     train_data = SeqDataset(data_path=config.train_data,
                             tokenizer=tokenizer,
-                            label_path=config.train_data_mentions,
+                            label_path=train_labels,
                             vocab=vocab)
     if vocab:
         vocab_size = train_data.vocab.size
     else:
         vocab_size = None
 
+    if "ecb" in config.val_data:
+        val_labels = config.val_data_mentions
+    elif "ontoNotes" in config.val_data:
+        val_labels = None
+
     val_data = SeqDataset(data_path=config.val_data,
                           tokenizer=tokenizer,
-                          label_path=config.val_data_mentions,
+                          label_path=val_labels,
                           vocab=vocab)
 
     # building model
@@ -190,6 +200,7 @@ if __name__ == '__main__':
           model=model,
           device=device,
           vocab=vocab,
+          config=config,
           copy_id=copy_id,
           num_epochs=num_epochs,
           batch_size=batch_size,
