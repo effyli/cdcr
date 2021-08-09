@@ -164,6 +164,7 @@ class CopyPtrDecoder(Decoder):
         device = initial_state.device
 
         actions = targets['actions']
+        labels = targets['labels']
         # create <sos> token as the first time step input
         initial_input = torch.tensor([self.sos_id for _ in range(batch_size)]).unsqueeze(1).to(device)
         rnn_input = self.embedding(initial_input)[0].squeeze(1)
@@ -212,6 +213,7 @@ class CopyPtrDecoder(Decoder):
             # this prob is used for inference
             prob = torch.sigmoid(logit)
             batch_actions = actions[:, step]
+            batch_labels = labels[:, step]
 
             batch_action_probs = []
             batch_output = []
@@ -240,9 +242,11 @@ class CopyPtrDecoder(Decoder):
                     # Get the indices of maximum pointer
                     _, masked_argmax = masked_max(end_input_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_input_pointer_argmaxs.append(masked_argmax)
-                    batch_input_index[i] = int(masked_argmax.squeeze(0))
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
+                    # feed in golden mentions instead of predicted index
+                    batch_input_index[i] = int(batch_labels[i]) + 1
+                    # index_tensor = batch_labels[i].unsqueeze(-1).expand(1, 1, self.hidden_size)
                     pointing_starts[i] = True
                     pointing_ends[i] = False
 

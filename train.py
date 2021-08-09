@@ -11,6 +11,7 @@ from cdcr.dataset import SeqDataset, fetch_dataloader
 from cdcr.model import build_model, CDCRModel
 from cdcr.utils.evaluation import Evaluator
 from cdcr.dataset.vocab import build_vocab, Vocab
+from cdcr.utils.ops import safe_div
 
 
 def calculate_loss(model_out, targets):
@@ -96,25 +97,34 @@ def evaluate(dataset: SeqDataset,
     """
     # initialize a evaluator for related metrics
     evaluator = Evaluator(total_steps=len(dataset), batch_size=batch_size, copy_id=copy_id, report_step=val_step)
-
+    corrects = 0
+    all_labels = 0
     model.eval()
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
     for inputs, targets in data_loader:
         model_out = model(inputs, targets)
         outputs = model_out["outputs"]
         batch_loss = calculate_loss(model_out, targets)
-        predicted_labels = outputs[:, :, 0].cpu()
-        labels = targets['labels'].cpu()
+        predicted_labels = outputs[:, :, 0].cpu().squeeze(0)
+        labels = targets['labels'].cpu().squeeze(0)
+        actions = targets['actions'].cpu().squeeze(0)
+        for pred, label, action in zip(predicted_labels, labels, actions):
+            # if not copy
+            if not torch.eq(action, torch.tensor(1.)):
+                all_labels += 1
+                corrects += int(torch.eq(pred, label))
         # calculate P,R,F1 score per batch
-        evaluator.update(predicted_labels, labels, batch_loss, targets['num_tokens'].cpu())
-        if evaluator.is_report():
-            step_loss, step_acc, step_recall, step_precision, step_f_1 = evaluator.report()
-            print("Eval step {}, out of {}".format(evaluator.step, len(dataset)))
-            print("Accuracy of current {} samples is {}, recall is {}, precision is {}, f1 is {}".format(val_step, step_acc, step_recall, step_precision, step_f_1))
-            print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
+        # evaluator.update(predicted_labels, labels, batch_loss, targets['num_tokens'].cpu())
+        # if evaluator.is_report():
+        #     step_loss, step_acc, step_recall, step_precision, step_f_1 = evaluator.report()
+        #     print("Eval step {}, out of {}".format(evaluator.step, len(dataset)))
+        #     print("Accuracy of current {} samples is {}, recall is {}, precision is {}, f1 is {}".format(val_step, step_acc, step_recall, step_precision, step_f_1))
+        #     print("Loss of current {} samples is {}".format(val_step, step_loss / val_step))
         torch.cuda.empty_cache()
+    acc = safe_div(corrects, all_labels)
+    print("overall accuracy is ", acc)
     model.train()
-    return step_loss
+    return acc
 
 
 if __name__ == '__main__':
