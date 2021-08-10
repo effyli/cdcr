@@ -228,6 +228,7 @@ class CopyPtrDecoder(Decoder):
                 pointing_end = pointing_ends[i]
 
                 batch_action_probs.append(bernoulli_action_log_prob(logit[i], action).to(device))
+                # print(batch_input_index)
                 sub_mask = mask_tensor[:, batch_input_index[i], :].float()
                 sub_mask_i = sub_mask[i].unsqueeze(0)
                 # during training, we use ground truth actions
@@ -269,6 +270,8 @@ class CopyPtrDecoder(Decoder):
                     end_ant_pointer_argmaxs.append(masked_argmax)
                     index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
+                    # next input index should be the end of input span + 1
+                    # index_tensor = torch.tensor(batch_input_index[i]).unsqueeze(-1).exapnd(1,1,self.hidden_size)
 
                     pointing_ends[i] = False
                     pointing_starts[i] = False

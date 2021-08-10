@@ -86,14 +86,14 @@ class SeqDataset(Dataset):
                 d_last = [e[-1][1] for e in doc_example]
                 for c_id, cluster in enumerate(document['clusters']):
                     for span in cluster:
-                        span_len = (span[1] - span[0] + 1)
+                        span_ids = (span[0], span[1])
                         for idx in range(span[0], span[-1] + 1):
                             for i, last in enumerate(d_last):
                                 if idx <= last:
                                     e_id = i
                                     t_id = idx - d_last[i - 1] - 1 if i > 0 else idx
                                     break
-                            doc_example[e_id][t_id][-1] = (c_id + 1, span_len)
+                            doc_example[e_id][t_id][-1] = (c_id + 1, span_ids)
                 for e in doc_example:
                     self.idx_to_sample.append(e)
 
@@ -154,7 +154,11 @@ class SeqDataset(Dataset):
             while t_id <= sent[-1][1]:
                 token = sent[t_id - offset]
                 if token[-1] != 0:
-                    c_id, span_len = token[-1]
+                    c_id, (span_start, span_end) = token[-1]
+                    # get real span len in the current segment
+                    span_start = 0 if span_start - offset < 0 else span_start - offset
+                    span_end = len(sent) - 1 if span_end - offset >= len(sent) else span_end - offset
+                    span_len = span_end - span_start + 1
                     # put antecedents in the targets
                     if c_id in cluster_dict:
                         antecedent_ids = cluster_dict[c_id]
@@ -168,7 +172,8 @@ class SeqDataset(Dataset):
                         for _ in range(3):
                             actions.append(self.action_not_copy)
                     else:
-                        for _ in range(span_len):
+                        # make sure index doesn't overflow
+                        for idx in range(span_len):
                             targets.append(t_id - offset)
                             actions.append(self.action_copy)
                             t_id += 1
@@ -178,7 +183,6 @@ class SeqDataset(Dataset):
                     actions.append(self.action_copy)
                     targets.append(t_id - offset)
                     t_id += 1
-
         return torch.tensor(inputs), torch.tensor(targets), torch.tensor(actions).float()
 
     def batch_fn(self, samples: List, device: torch.device) -> Tuple[Dict, Dict]:

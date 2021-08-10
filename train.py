@@ -55,6 +55,9 @@ def train(dataset: SeqDataset,
         momentum=0.9)
 
     data_loader = fetch_dataloader(dataset=dataset, split="train", device=device, batch_size=batch_size)
+    # for debugging dataset
+    for inputs, targets in data_loader:
+        continue
     best_epoch_loss = float('+inf')
     best_model = None
     for epoch in range(num_epochs):
@@ -137,7 +140,8 @@ if __name__ == '__main__':
 
     config = pyhocon.ConfigFactory.parse_file(args.config)
     # set up GPU
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     # model params
     batch_size = config.batch_size
     encoder = config.encoder
