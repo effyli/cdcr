@@ -74,7 +74,7 @@ def build_model(encoder_name: str,
                 ):
     # create encoder
     if encoder_name == 'independent':
-        encoder = IndependentEncoder(pre_trained_emb=pre_trained_emb)
+        encoder = IndependentEncoder(pre_trained_emb=pre_trained_emb, bert_size=input_size)
 
     # create decoder
     if decoder_name == "rnn":

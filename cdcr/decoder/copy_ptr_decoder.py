@@ -129,7 +129,9 @@ class CopyPtrDecoder(Decoder):
         self.copy = 1
         self.decision_making = nn.Linear(hidden_size * (2 if bidirectional else 1), 1)
 
-        self.attn = Attention(hidden_size)
+        self.input_end_attn = Attention(hidden_size)
+        self.ant_start_attn = Attention(hidden_size)
+        self.ant_end_attn = Attention(hidden_size)
 
         self.hidden_size = hidden_size
         if input_size != hidden_size:
@@ -238,47 +240,47 @@ class CopyPtrDecoder(Decoder):
                     # predict the end position of input span
                     # calculate pointer score for all encoder outputs
                     # predict the end input span position
-                    end_input_log_pointer_score = self.attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
+                    end_input_log_pointer_score = self.input_end_attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
                     end_input_log_pointer_scores.append(end_input_log_pointer_score)
                     # Get the indices of maximum pointer
                     _, masked_argmax = masked_max(end_input_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_input_pointer_argmaxs.append(masked_argmax)
-                    index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
+                    index_tensor = masked_argmax.expand(1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
                     # feed in golden mentions instead of predicted index
-                    batch_input_index[i] = int(batch_labels[i]) + 1
+                    batch_input_index[i] = int(batch_labels[i]) + 1 if int(batch_labels[i]) < max_input_len - 1 else int(batch_labels[i])
                     # index_tensor = batch_labels[i].unsqueeze(-1).expand(1, 1, self.hidden_size)
                     pointing_starts[i] = True
                     pointing_ends[i] = False
 
                 elif pointing_start and not pointing_end and not action:
                     # predict the start position of antecedent span
-                    start_ant_log_pointer_score = self.attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
+                    start_ant_log_pointer_score = self.ant_start_attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
                     start_ant_log_pointer_scores.append(start_ant_log_pointer_score)
                     _, masked_argmax = masked_max(start_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     start_ant_pointer_argmaxs.append(masked_argmax)
-                    index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
+                    index_tensor = masked_argmax.expand(1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
 
                     pointing_ends[i] = True
                     pointing_starts[i] = False
                 elif not pointing_start and pointing_end and not action:
                     # predict the end position of antecedent span
-                    end_ant_log_pointer_score = self.attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
+                    end_ant_log_pointer_score = self.ant_end_attn(h_step[i].unsqueeze(0), encoder_outputs[i].unsqueeze(0), sub_mask_i)
                     end_ant_log_pointer_scores.append(end_ant_log_pointer_score)
                     _, masked_argmax = masked_max(end_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_ant_pointer_argmaxs.append(masked_argmax)
-                    index_tensor = masked_argmax.unsqueeze(-1).expand(1, 1, self.hidden_size)
+                    index_tensor = masked_argmax.expand(1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
                     # next input index should be the end of input span + 1
-                    # index_tensor = torch.tensor(batch_input_index[i]).unsqueeze(-1).exapnd(1,1,self.hidden_size)
+                    # index_tensor = torch.tensor(batch_input_index[i]).unsqueeze(-1).exapnd(1,self.hidden_size)
 
                     pointing_ends[i] = False
                     pointing_starts[i] = False
                 # if copy, generate current input id
                 elif action:
                     pointer = batch_input_index[i]
-                    index_tensor = torch.tensor(pointer).unsqueeze(-1).expand(1, 1, self.hidden_size)
+                    index_tensor = torch.tensor(pointer).expand(1, self.hidden_size)
                     batch_output.append(index_tensor.unsqueeze(0))
                     # (batch_size, hidden_size)
                     pointing_ends[i] = False
@@ -286,8 +288,8 @@ class CopyPtrDecoder(Decoder):
                     batch_input_index[i] = pointer + 1 if pointer < max_input_len - 1 else pointer
                 else:
                     print("category not meet")
-                rnn_input = torch.gather(encoder_outputs, dim=1, index=index_tensor).squeeze(1)
-                batch_rnn_input.append(rnn_input)
+                single_rnn_input = torch.gather(encoder_outputs[i], dim=0, index=index_tensor).squeeze(1)
+                batch_rnn_input.append(single_rnn_input)
             action_probs.append(torch.tensor(batch_action_probs).to(device))
             outputs.append(torch.stack(batch_output).squeeze(1))
             rnn_input = torch.stack(batch_rnn_input).squeeze(1)

@@ -183,6 +183,7 @@ class SeqDataset(Dataset):
                     actions.append(self.action_copy)
                     targets.append(t_id - offset)
                     t_id += 1
+
         return torch.tensor(inputs), torch.tensor(targets), torch.tensor(actions).float()
 
     def batch_fn(self, samples: List, device: torch.device) -> Tuple[Dict, Dict]:

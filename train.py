@@ -56,8 +56,8 @@ def train(dataset: SeqDataset,
 
     data_loader = fetch_dataloader(dataset=dataset, split="train", device=device, batch_size=batch_size)
     # for debugging dataset
-    for inputs, targets in data_loader:
-        continue
+    # for inputs, targets in data_loader:
+    #     continue
     best_epoch_loss = float('+inf')
     best_model = None
     for epoch in range(num_epochs):
