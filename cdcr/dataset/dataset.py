@@ -97,8 +97,8 @@ class SeqDataset(Dataset):
                 for e in doc_example:
                     self.idx_to_sample.append(e)
 
-                # for debugging
-                # self.idx_to_sample = self.idx_to_sample[:10]
+            # for debugging
+            # self.idx_to_sample = self.idx_to_sample[:10]
 
         # sampling
         if sampling:

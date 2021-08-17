@@ -122,22 +122,25 @@ class CopyPtrDecoder(Decoder):
         self.max_iterations = max_iterations
 
         # decoding rnn
-        self.rnn = nn.LSTMCell(input_size, hidden_size)
+        self.rnn = nn.LSTMCell(hidden_size, hidden_size)
         self.embedding = pre_trained_emb
 
         # decision making for copy
         self.copy = 1
-        self.decision_making = nn.Linear(hidden_size * (2 if bidirectional else 1), 1)
+        self.decision_making = nn.Linear(hidden_size * (2 if bidirectional else 1), 1, bias=False)
 
         self.input_end_attn = Attention(hidden_size)
         self.ant_start_attn = Attention(hidden_size)
         self.ant_end_attn = Attention(hidden_size)
 
+        self.input_size = input_size
         self.hidden_size = hidden_size
         if input_size != hidden_size:
             self.initial_transform = nn.Linear(input_size, hidden_size, bias=False)
+            self.initial_input_transform = nn.Linear(input_size, hidden_size, bias=False)
         else:
             self.initial_transform = None
+            self.initial_input_transform = None
 
         self.sos_id = sos_id
         self.eos_id = eos_id
@@ -170,8 +173,9 @@ class CopyPtrDecoder(Decoder):
         # create <sos> token as the first time step input
         initial_input = torch.tensor([self.sos_id for _ in range(batch_size)]).unsqueeze(1).to(device)
         rnn_input = self.embedding(initial_input)[0].squeeze(1)
+        if self.initial_input_transform is not None:
+            rnn_input = self.initial_input_transform(rnn_input)
         rnn_hidden = initial_state
-
 
         if self.bidirectional:
             rnn_hidden = torch.stack([rnn_hidden, rnn_hidden], 0)
@@ -190,7 +194,8 @@ class CopyPtrDecoder(Decoder):
         col_mask_tensor = row_mask_tensor.transpose(1, 2)
         mask_tensor = row_mask_tensor * col_mask_tensor
 
-        outputs = []
+        log_outputs = []
+        outputs_ids = []
         action_probs = []
         end_input_log_pointer_scores = []
         end_input_pointer_argmaxs = []
@@ -206,19 +211,22 @@ class CopyPtrDecoder(Decoder):
         is_finished = [False for _ in range(batch_size)]
 
         # for each time step we first make a decision of copy or not
-        # check if all batches have done training
         for step in range(max_output_len):
             rnn_hidden = self.rnn(rnn_input, rnn_hidden)
             h_step, c_step = rnn_hidden
+            h_step = torch.relu(h_step)
+            rnn_hidden = h_step, c_step
             # get the logit, used for calculate the log prob
             logit = self.decision_making(h_step)
+            logit.retain_grad()
             # this prob is used for inference
             prob = torch.sigmoid(logit)
             batch_actions = actions[:, step]
             batch_labels = labels[:, step]
 
             batch_action_probs = []
-            batch_output = []
+            batch_log_output = []
+            batch_id_output = []
 
             batch_rnn_input = []
 
@@ -246,7 +254,8 @@ class CopyPtrDecoder(Decoder):
                     _, masked_argmax = masked_max(end_input_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_input_pointer_argmaxs.append(masked_argmax)
                     index_tensor = masked_argmax.expand(1, self.hidden_size)
-                    batch_output.append(index_tensor.unsqueeze(0))
+                    batch_log_output.append(end_input_log_pointer_score.squeeze(0))
+                    batch_id_output.append(masked_argmax.squeeze(0))
                     # feed in golden mentions instead of predicted index
                     batch_input_index[i] = int(batch_labels[i]) + 1 if int(batch_labels[i]) < max_input_len - 1 else int(batch_labels[i])
                     # index_tensor = batch_labels[i].unsqueeze(-1).expand(1, 1, self.hidden_size)
@@ -260,7 +269,8 @@ class CopyPtrDecoder(Decoder):
                     _, masked_argmax = masked_max(start_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     start_ant_pointer_argmaxs.append(masked_argmax)
                     index_tensor = masked_argmax.expand(1, self.hidden_size)
-                    batch_output.append(index_tensor.unsqueeze(0))
+                    batch_log_output.append(start_ant_log_pointer_score.squeeze(0))
+                    batch_id_output.append(masked_argmax.squeeze(0))
 
                     pointing_ends[i] = True
                     pointing_starts[i] = False
@@ -271,7 +281,8 @@ class CopyPtrDecoder(Decoder):
                     _, masked_argmax = masked_max(end_ant_log_pointer_score, sub_mask_i, dim=1, keepdim=True)
                     end_ant_pointer_argmaxs.append(masked_argmax)
                     index_tensor = masked_argmax.expand(1, self.hidden_size)
-                    batch_output.append(index_tensor.unsqueeze(0))
+                    batch_log_output.append(end_ant_log_pointer_score.squeeze(0))
+                    batch_id_output.append(masked_argmax.squeeze(0))
                     # next input index should be the end of input span + 1
                     # index_tensor = torch.tensor(batch_input_index[i]).unsqueeze(-1).exapnd(1,self.hidden_size)
 
@@ -281,7 +292,9 @@ class CopyPtrDecoder(Decoder):
                 elif action:
                     pointer = batch_input_index[i]
                     index_tensor = torch.tensor(pointer).expand(1, self.hidden_size)
-                    batch_output.append(index_tensor.unsqueeze(0))
+                    pointer_one_hot = torch.nn.functional.one_hot(torch.tensor([pointer, max_input_len - 1]))[0]
+                    batch_log_output.append(pointer_one_hot)
+                    batch_id_output.append(torch.tensor([pointer]))
                     # (batch_size, hidden_size)
                     pointing_ends[i] = False
                     pointing_starts[i] = False
@@ -291,10 +304,12 @@ class CopyPtrDecoder(Decoder):
                 single_rnn_input = torch.gather(encoder_outputs[i], dim=0, index=index_tensor).squeeze(1)
                 batch_rnn_input.append(single_rnn_input)
             action_probs.append(torch.tensor(batch_action_probs).to(device))
-            outputs.append(torch.stack(batch_output).squeeze(1))
+            log_outputs.append(torch.stack(batch_log_output))
+            outputs_ids.append(torch.stack(batch_id_output))
             rnn_input = torch.stack(batch_rnn_input).squeeze(1)
 
         action_probs = torch.stack(action_probs).permute(1, 0)
-        outputs = torch.stack(outputs).squeeze(2).squeeze(2).permute(1, 0, 2)
-        return {"action_probs": action_probs, "outputs": outputs.float()}
+        log_outputs = torch.stack(log_outputs).permute(1, 0, 2)
+        outputs_ids = torch.stack(outputs_ids).permute(1,2,0)
+        return {"action_probs": action_probs, "log_outputs": log_outputs.float(), "outputs_ids": outputs_ids}
 

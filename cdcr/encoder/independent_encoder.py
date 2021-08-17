@@ -10,10 +10,10 @@ class IndependentEncoder(Encoder):
     An encoder holds independent assumption (without context) for each token in the input.
     """
 
-    def __init__(self, bert_size: int, pre_trained_emb: AutoModel = None):
-        super().__init__(bert_size, pre_trained_emb)
+    def __init__(self, bert_size: int, hidden_size: int, pre_trained_emb: AutoModel = None):
+        super().__init__(bert_size, hidden_size, pre_trained_emb)
         self.pre_trained_emb = pre_trained_emb
-        self.rnn = nn.LSTM(bert_size, bert_size)
+        self.rnn = nn.LSTM(bert_size, hidden_size)
 
     def forward(self, inputs):
         # using pre-trained bert model, last layer hidden states

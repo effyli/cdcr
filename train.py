@@ -20,15 +20,18 @@ def calculate_loss(model_out, targets):
     actions = targets['actions']
 
     loss = 0
-    criterion = torch.nn.CrossEntropyLoss(reduction='sum')
+    criterion = torch.nn.NLLLoss(reduction='sum')
     bi_criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
 
     log_probs = model_out["action_probs"]
-    outputs = model_out["outputs"]
+    outputs = model_out["log_outputs"]
     # calculate per sentence
     for output, label, seq_len, log_prob, action in zip(outputs, labels, seq_lens, log_probs, actions):
-        loss += criterion(output[:seq_len], label[:seq_len])
-        loss += bi_criterion(log_prob[:seq_len], action[:seq_len])
+        for idx in range(seq_len):
+            if not bool(action[idx]):
+                loss += criterion(output[idx, :].unsqueeze(0), label[idx].unsqueeze(0))
+        # loss += criterion(output[:seq_len], label[:seq_len])
+        # loss += bi_criterion(log_prob[:seq_len], action[:seq_len])
 
     # loss per token / sentence?
     # TODO: loss per mention?
@@ -70,8 +73,9 @@ def train(dataset: SeqDataset,
             loss = calculate_loss(outputs, targets)
             epoch_loss += loss
             # backprop
-            loss.requires_grad = True
             loss.backward()
+            # print(model.decision_making.weight.grad)
+            # print(model.input_end_attn.weight.grad)
             optimizer.step()
             # _ = evaluate(dataset=val_dataset, model=model, device=device, batch_size=2, copy_id=copy_id)
 
@@ -106,7 +110,7 @@ def evaluate(dataset: SeqDataset,
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
     for inputs, targets in data_loader:
         model_out = model(inputs, targets)
-        outputs = model_out["outputs"]
+        outputs = model_out["log_outputs"]
         batch_loss = calculate_loss(model_out, targets)
         predicted_labels = outputs[:, :, 0].cpu().squeeze(0)
         labels = targets['labels'].cpu().squeeze(0)
@@ -131,6 +135,8 @@ def evaluate(dataset: SeqDataset,
 
 
 if __name__ == '__main__':
+    seed = 816
+    torch.manual_seed(seed)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     # arguments parsing
     parser = argparse.ArgumentParser()
