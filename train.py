@@ -72,6 +72,27 @@ def train(dataset: SeqDataset,
             # get loss
             loss = calculate_loss(outputs, targets)
             epoch_loss += loss
+
+            # if epoch == 0:
+            #     for i in range(batch_size):
+            #         print("batch sample no.:", i)
+            #         predicted_labels = outputs['outputs_ids'][i, 0, :].cpu()
+            #         predicted_actions = outputs['action_probs']
+            #         preds, ls = [], []
+            #         for pred_l, l, a in zip(predicted_labels, targets['labels'][0], targets['actions'][0]):
+            #             if a != torch.tensor([1]):
+            #                 preds.append(pred_l)
+            #                 ls.append(l)
+            #             else:
+            #                 preds.append(0)
+            #                 ls.append(0)
+            #         print("labels: ")
+            #         print(torch.tensor(ls))
+            #         print("predicted labels: ")
+            #         print(torch.tensor(preds))
+            #         print("actions: ")
+            #         print(targets['actions'])
+
             # backprop
             loss.backward()
             # print(model.decision_making.weight.grad)
@@ -110,9 +131,8 @@ def evaluate(dataset: SeqDataset,
     data_loader = fetch_dataloader(dataset=dataset, split="val", device=device, batch_size=batch_size)
     for inputs, targets in data_loader:
         model_out = model(inputs, targets)
-        outputs = model_out["log_outputs"]
         batch_loss = calculate_loss(model_out, targets)
-        predicted_labels = outputs[:, :, 0].cpu().squeeze(0)
+        predicted_labels = model_out['outputs_ids'][0, 0, :].cpu()
         labels = targets['labels'].cpu().squeeze(0)
         actions = targets['actions'].cpu().squeeze(0)
         for pred, label, action in zip(predicted_labels, labels, actions):

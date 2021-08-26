@@ -97,6 +97,24 @@ class SeqDataset(Dataset):
                 for e in doc_example:
                     self.idx_to_sample.append(e)
 
+            # skip samples when there is not labels
+            idx_to_sample_slim = []
+            for sample in self.idx_to_sample:
+                c_ids = []
+                w_id = 0
+                while w_id < len(sample):
+                    w = sample[w_id]
+                    if w[-1] != 0:
+                        c_id = w[-1][0]
+                        if c_id in c_ids:
+                            idx_to_sample_slim.append(sample)
+                            break
+                        else:
+                            c_ids.append(c_id)
+                            w_id += (w[-1][1][1] - w[-1][1][0] + 1)
+                    else:
+                        w_id += 1
+            self.idx_to_sample = idx_to_sample_slim
             # for debugging
             # self.idx_to_sample = self.idx_to_sample[:10]
 
